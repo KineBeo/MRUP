@@ -89,6 +89,11 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
 
         lastQueryString = "-- Q1:\n" + q1 + "\n-- Q2:\n" + q2 + "\n-- Q_union:\n" + qUnion;
 
+        // Print queries for demonstration
+        System.out.println("\n=== MRUP Generated Queries ===");
+        System.out.println(lastQueryString);
+        System.out.println("==============================\n");
+
         // Execute and get cardinalities
         int card1 = executeAndGetCardinality(q1);
         int card2 = executeAndGetCardinality(q2);

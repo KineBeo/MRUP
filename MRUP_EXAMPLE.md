@@ -286,3 +286,106 @@ The MRUP oracle provides:
 
 This POC demonstrates the feasibility and effectiveness of the MRUP approach for testing window functions in database systems.
 
+
+
+
+10 sample generate directly from generator: 
+timeout 15 java -jar target/sqlancer-2.0.0.jar --num-queries 10 sqlite3 --oracle MRUP 2>&1 | grep -A 10 "=== MRUP" | head -100
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, c1, c2, c3, c4, c5, c6, AVG(c1) OVER (ORDER BY c2 ASC NULLS FIRST, c6, c5 NULLS FIRST GROUPS 1 PRECEDING EXCLUDE TIES) AS wf_result FROM rt1
+-- Q2:
+SELECT c0, c1, c2, c3, c4, c5, c6, AVG(c1) OVER (ORDER BY c2 ASC NULLS FIRST, c6, c5 NULLS FIRST GROUPS 1 PRECEDING EXCLUDE TIES) AS wf_result FROM rt1
+-- Q_union:
+SELECT c0, c1, c2, c3, c4, c5, c6, AVG(c1) OVER (ORDER BY c2 ASC NULLS FIRST, c6, c5 NULLS FIRST GROUPS 1 PRECEDING EXCLUDE TIES) AS wf_result FROM (SELECT * FROM rt1 UNION ALL SELECT * FROM rt1) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, c1, c2, c3, c4, c5, c6, MAX(c1) OVER (PARTITION BY c3 ORDER BY c3 NULLS LAST RANGE BETWEEN 2 PRECEDING AND UNBOUNDED FOLLOWING) AS wf_result FROM rt1
+-- Q2:
+SELECT c0, c1, c2, c3, c4, c5, c6, MAX(c1) OVER (PARTITION BY c3 ORDER BY c3 NULLS LAST RANGE BETWEEN 2 PRECEDING AND UNBOUNDED FOLLOWING) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, c1, c2, c3, c4, c5, c6, MAX(c1) OVER (PARTITION BY c3 ORDER BY c3 NULLS LAST RANGE BETWEEN 2 PRECEDING AND UNBOUNDED FOLLOWING) AS wf_result FROM (SELECT * FROM rt1 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, AVG(c0) OVER (PARTITION BY c0 ORDER BY c0 DESC NULLS LAST) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, AVG(c0) OVER (PARTITION BY c0 ORDER BY c0 DESC NULLS LAST) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, AVG(c0) OVER (PARTITION BY c0 ORDER BY c0 DESC NULLS LAST) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, SUM(c0) OVER (ORDER BY c0 ASC ROWS 1 PRECEDING) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, SUM(c0) OVER (ORDER BY c0 ASC ROWS 1 PRECEDING) AS wf_result FROM rt1
+-- Q_union:
+SELECT c0, SUM(c0) OVER (ORDER BY c0 ASC ROWS 1 PRECEDING) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM rt1) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, MIN(c0) OVER (PARTITION BY c0 ORDER BY c0 RANGE 1 PRECEDING) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, MIN(c0) OVER (PARTITION BY c0 ORDER BY c0 RANGE 1 PRECEDING) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, MIN(c0) OVER (PARTITION BY c0 ORDER BY c0 RANGE 1 PRECEDING) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, MIN(c0) OVER (ORDER BY c0 DESC ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, MIN(c0) OVER (ORDER BY c0 DESC ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS wf_result FROM rt1
+-- Q_union:
+SELECT c0, MIN(c0) OVER (ORDER BY c0 DESC ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM rt1) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, c1, c2, c3, c4, c5, c6, MIN(c6) OVER (ORDER BY c4 ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS wf_result FROM rt1
+-- Q2:
+SELECT c0, c1, c2, c3, c4, c5, c6, MIN(c6) OVER (ORDER BY c4 ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, c1, c2, c3, c4, c5, c6, MIN(c6) OVER (ORDER BY c4 ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS wf_result FROM (SELECT * FROM rt1 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, c1, c2, c3, c4, c5, c6, ROW_NUMBER() OVER (PARTITION BY c0, c2, c3 ORDER BY c5) AS wf_result FROM rt1
+-- Q2:
+SELECT c0, c1, c2, c3, c4, c5, c6, ROW_NUMBER() OVER (PARTITION BY c0, c2, c3 ORDER BY c5) AS wf_result FROM rt1
+-- Q_union:
+SELECT c0, c1, c2, c3, c4, c5, c6, ROW_NUMBER() OVER (PARTITION BY c0, c2, c3 ORDER BY c5) AS wf_result FROM (SELECT * FROM rt1 UNION ALL SELECT * FROM rt1) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, ROW_NUMBER() OVER (ORDER BY c0) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, ROW_NUMBER() OVER (ORDER BY c0) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, ROW_NUMBER() OVER (ORDER BY c0) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
+
+
+=== MRUP Generated Queries ===
+-- Q1:
+SELECT c0, DENSE_RANK() OVER (ORDER BY c0 ASC) AS wf_result FROM vt0
+-- Q2:
+SELECT c0, DENSE_RANK() OVER (ORDER BY c0 ASC) AS wf_result FROM vt0
+-- Q_union:
+SELECT c0, DENSE_RANK() OVER (ORDER BY c0 ASC) AS wf_result FROM (SELECT * FROM vt0 UNION ALL SELECT * FROM vt0) AS t_union
+==============================
