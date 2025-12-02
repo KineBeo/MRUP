@@ -11,7 +11,7 @@ import sqlancer.common.oracle.TestOracle;
 import sqlancer.common.query.ExpectedErrors;
 import sqlancer.sqlite3.SQLite3Errors;
 import sqlancer.sqlite3.SQLite3GlobalState;
-import sqlancer.sqlite3.schema.SQLite3Schema;
+import sqlancer.sqlite3.gen.SQLite3MRUPTablePairGenerator;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Column;
 import sqlancer.sqlite3.schema.SQLite3Schema.SQLite3Table;
 
@@ -45,24 +45,18 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
 
     @Override
     public void check() throws Exception {
-        // Step 1 & 2: Get two random tables (reusing existing tables from SQLancer)
-        SQLite3Schema schema = globalState.getSchema();
-        List<SQLite3Table> tables = schema.getDatabaseTablesWithoutViews();
+        // Step 1 & 2: Generate two tables with the SAME schema
+        // Using custom MRUP table pair generator that reuses SQLancer's generators
+        SQLite3Table[] tablePair = SQLite3MRUPTablePairGenerator.generateMRUPTablePair(globalState);
+        SQLite3Table t1 = tablePair[0];
+        SQLite3Table t2 = tablePair[1];
         
-        if (tables.size() < 2) {
-            throw new IgnoreMeException(); // Need at least 2 tables
-        }
-
-        // Select two random tables
-        SQLite3Table t1 = Randomly.fromList(tables);
-        SQLite3Table t2 = Randomly.fromList(tables);
-        
-        // Ensure tables have rows
+        // Verify tables have data (should always be true, but check anyway)
         if (t1.getNrRows(globalState) == 0 || t2.getNrRows(globalState) == 0) {
             throw new IgnoreMeException();
         }
 
-        // Get columns from first table (for simplicity, assume compatible schemas)
+        // Get columns (both tables have the same schema)
         List<SQLite3Column> columns = t1.getColumns();
         if (columns.isEmpty()) {
             throw new IgnoreMeException();
@@ -89,10 +83,6 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
 
         lastQueryString = "-- Q1:\n" + q1 + "\n-- Q2:\n" + q2 + "\n-- Q_union:\n" + qUnion;
 
-        // Print queries for demonstration
-        System.out.println("\n=== MRUP Generated Queries ===");
-        System.out.println(lastQueryString);
-        System.out.println("==============================\n");
 
         // Execute and get cardinalities
         int card1 = executeAndGetCardinality(q1);
@@ -315,5 +305,49 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
     public String getLastQueryString() {
         return lastQueryString;
     }
+
+    /**
+     * Print table information including schema and data
+     */
+    // private void printTableInfo(SQLite3Table table, String label) {
+    //     try {
+    //         System.out.println("\n" + label + ": " + table.getName());
+            
+    //         // Print schema
+    //         System.out.print("  Schema: (");
+    //         List<SQLite3Column> cols = table.getColumns();
+    //         for (int i = 0; i < cols.size(); i++) {
+    //             if (i > 0) System.out.print(", ");
+    //             System.out.print(cols.get(i).getName() + " " + cols.get(i).getType());
+    //         }
+    //         System.out.println(")");
+            
+    //         // Print row count
+    //         long rowCount = table.getNrRows(globalState);
+    //         System.out.println("  Rows: " + rowCount);
+            
+    //         // Print actual data (first 5 rows)
+    //         if (rowCount > 0) {
+    //             String dataQuery = "SELECT * FROM " + table.getName() + " LIMIT 5";
+    //             try (Statement stmt = globalState.getConnection().createStatement()) {
+    //                 ResultSet rs = stmt.executeQuery(dataQuery);
+    //                 System.out.println("  Data:");
+    //                 int rowNum = 0;
+    //                 while (rs.next() && rowNum < 5) {
+    //                     System.out.print("    Row " + (rowNum + 1) + ": ");
+    //                     for (int i = 0; i < cols.size(); i++) {
+    //                         if (i > 0) System.out.print(", ");
+    //                         Object value = rs.getObject(i + 1);
+    //                         System.out.print(cols.get(i).getName() + "=" + value);
+    //                     }
+    //                     System.out.println();
+    //                     rowNum++;
+    //                 }
+    //             }
+    //         }
+    //     } catch (Exception e) {
+    //         System.out.println("  Error printing table info: " + e.getMessage());
+    //     }
+    // }
 }
 
