@@ -3,6 +3,7 @@ package sqlancer.sqlite3.oracle;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 import sqlancer.IgnoreMeException;
@@ -65,6 +66,15 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         // Step 3: Generate window function query using OSRB algorithm
         String windowSpec = generateWindowSpecOSRB(columns);
         
+        // Step 3.5: Apply random mutations to window spec (Top 10 strategies)
+        // Randomly decide whether to apply mutations (50% chance for POC)
+        if (Randomly.getBoolean()) {
+            String mutatedSpec = SQLite3MRUPMutationOperator.applyRandomMutations(windowSpec, columns);
+            System.out.println("  [MUTATION] Original: " + windowSpec);
+            System.out.println("  [MUTATION] Mutated:  " + mutatedSpec);
+            windowSpec = mutatedSpec;
+        }
+        
         // Pick a random column for the window function
         SQLite3Column targetColumn = Randomly.fromList(columns);
         
@@ -84,21 +94,47 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         lastQueryString = "-- Q1:\n" + q1 + "\n-- Q2:\n" + q2 + "\n-- Q_union:\n" + qUnion;
 
 
-        // Execute and get cardinalities
-        int card1 = executeAndGetCardinality(q1);
-        int card2 = executeAndGetCardinality(q2);
-        int cardUnion = executeAndGetCardinality(qUnion);
+        // Execute and get results
+        List<List<String>> results1 = executeAndGetResults(q1);
+        List<List<String>> results2 = executeAndGetResults(q2);
+        List<List<String>> resultsUnion = executeAndGetResults(qUnion);
 
-        // Step 5: Compare cardinalities (simple check for POC)
-        int expectedCardinality = card1 + card2;
+        // Step 5: Compare results
+        // 5.1: Check cardinality first (fast check)
+        int expectedCardinality = results1.size() + results2.size();
+        int actualCardinality = resultsUnion.size();
         
-        if (cardUnion != expectedCardinality) {
+        if (actualCardinality != expectedCardinality) {
             throw new AssertionError(
                 String.format("MRUP Oracle: Cardinality mismatch!\n" +
                     "Expected: %d (Q1: %d + Q2: %d)\n" +
                     "Actual: %d\n" +
                     "Queries:\n%s",
-                    expectedCardinality, card1, card2, cardUnion, lastQueryString)
+                    expectedCardinality, results1.size(), results2.size(), actualCardinality, lastQueryString)
+            );
+        }
+        
+        // 5.2: Check actual result values (simple comparison for POC)
+        // Combine Q1 and Q2 results
+        List<List<String>> expectedResults = new ArrayList<>();
+        expectedResults.addAll(results1);
+        expectedResults.addAll(results2);
+        
+        // Sort both for comparison (since UNION ALL order may vary)
+        sortResults(expectedResults);
+        sortResults(resultsUnion);
+        
+        // Compare row by row
+        if (!resultsMatch(expectedResults, resultsUnion)) {
+            throw new AssertionError(
+                String.format("MRUP Oracle: Result set mismatch!\n" +
+                    "Expected rows: %d\n" +
+                    "Actual rows: %d\n" +
+                    "First difference at row: %s\n" +
+                    "Queries:\n%s",
+                    expectedResults.size(), resultsUnion.size(), 
+                    findFirstDifference(expectedResults, resultsUnion),
+                    lastQueryString)
             );
         }
     }
@@ -275,17 +311,26 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
     }
 
     /**
-     * Execute query and return the number of rows (cardinality)
+     * Execute query and return all results as list of rows
+     * Each row is a list of string values
      */
-    private int executeAndGetCardinality(String query) throws SQLException {
-        int rowCount = 0;
+    private List<List<String>> executeAndGetResults(String query) throws SQLException {
+        List<List<String>> results = new ArrayList<>();
         
         try (Statement stmt = globalState.getConnection().createStatement()) {
             boolean hasResultSet = stmt.execute(query);
             if (hasResultSet) {
                 try (ResultSet rs = stmt.getResultSet()) {
+                    int columnCount = rs.getMetaData().getColumnCount();
+                    
                     while (rs.next()) {
-                        rowCount++;
+                        List<String> row = new ArrayList<>();
+                        for (int i = 1; i <= columnCount; i++) {
+                            Object value = rs.getObject(i);
+                            // Convert to string for comparison (handle nulls)
+                            row.add(value == null ? "NULL" : value.toString());
+                        }
+                        results.add(row);
                     }
                 }
             }
@@ -298,7 +343,68 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
             throw e;
         }
         
-        return rowCount;
+        return results;
+    }
+    
+    /**
+     * Sort results for comparison (simple lexicographic sort)
+     */
+    private void sortResults(List<List<String>> results) {
+        results.sort((row1, row2) -> {
+            for (int i = 0; i < Math.min(row1.size(), row2.size()); i++) {
+                int cmp = row1.get(i).compareTo(row2.get(i));
+                if (cmp != 0) return cmp;
+            }
+            return Integer.compare(row1.size(), row2.size());
+        });
+    }
+    
+    /**
+     * Check if two result sets match
+     */
+    private boolean resultsMatch(List<List<String>> expected, List<List<String>> actual) {
+        if (expected.size() != actual.size()) {
+            return false;
+        }
+        
+        for (int i = 0; i < expected.size(); i++) {
+            List<String> expectedRow = expected.get(i);
+            List<String> actualRow = actual.get(i);
+            
+            if (expectedRow.size() != actualRow.size()) {
+                return false;
+            }
+            
+            for (int j = 0; j < expectedRow.size(); j++) {
+                if (!expectedRow.get(j).equals(actualRow.get(j))) {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Find first difference between two result sets for error reporting
+     */
+    private String findFirstDifference(List<List<String>> expected, List<List<String>> actual) {
+        int minSize = Math.min(expected.size(), actual.size());
+        
+        for (int i = 0; i < minSize; i++) {
+            List<String> expectedRow = expected.get(i);
+            List<String> actualRow = actual.get(i);
+            
+            if (!expectedRow.equals(actualRow)) {
+                return String.format("Row %d: Expected %s, Got %s", i + 1, expectedRow, actualRow);
+            }
+        }
+        
+        if (expected.size() != actual.size()) {
+            return String.format("Row count mismatch: Expected %d, Got %d", expected.size(), actual.size());
+        }
+        
+        return "No difference found";
     }
 
     @Override
