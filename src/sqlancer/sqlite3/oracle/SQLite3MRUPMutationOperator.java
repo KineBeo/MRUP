@@ -23,15 +23,8 @@ public class SQLite3MRUPMutationOperator {
      * @return Mutated window specification
      */
     public static String applyRandomMutations(String windowSpec, List<SQLite3Column> columns) {
-        // Randomly decide how many mutations to apply (0-3)
-        int numMutations = Randomly.fromOptions(0, 1, 1, 2, 3);
-        
-        String mutated = windowSpec;
-        for (int i = 0; i < numMutations; i++) {
-            mutated = applyRandomMutation(mutated, columns);
-        }
-        
-        return mutated;
+        // Apply only 1 mutation to avoid corrupting the window spec
+        return applyRandomMutation(windowSpec, columns);
     }
 
     /**
@@ -76,21 +69,32 @@ public class SQLite3MRUPMutationOperator {
             return windowSpec;
         }
         
-        // Find ORDER BY clause
+        // Find ORDER BY clause - look for the actual column name
         int orderByPos = windowSpec.indexOf("ORDER BY");
         if (orderByPos == -1) return windowSpec;
         
-        // Find the end of ORDER BY (before ROWS/RANGE/GROUPS or closing paren)
-        int endPos = findOrderByEnd(windowSpec, orderByPos);
+        // Extract the first column name after ORDER BY
+        String afterOrderBy = windowSpec.substring(orderByPos + 9).trim(); // "ORDER BY " is 9 chars
+        String firstCol = afterOrderBy.split("\\s+")[0]; // Get first word (column name)
         
-        String beforeOrderBy = windowSpec.substring(0, endPos);
-        String afterOrderBy = windowSpec.substring(endPos);
+        // Find where to insert duplicate (after first column and its direction)
+        int insertPos = orderByPos + 9 + firstCol.length();
         
-        // Get a random column from ORDER BY and duplicate it
-        if (columns.isEmpty()) return windowSpec;
-        String randomCol = Randomly.fromList(columns).getName();
+        // Skip direction keywords if present
+        String remaining = windowSpec.substring(insertPos).trim();
+        if (remaining.startsWith("ASC") || remaining.startsWith("DESC")) {
+            insertPos += remaining.startsWith("ASC") ? 4 : 5;
+        }
+        if (windowSpec.substring(insertPos).trim().startsWith("NULLS")) {
+            int nullsEnd = windowSpec.indexOf("LAST", insertPos);
+            if (nullsEnd == -1) nullsEnd = windowSpec.indexOf("FIRST", insertPos);
+            if (nullsEnd != -1) insertPos = nullsEnd + 4;
+        }
         
-        return beforeOrderBy + ", " + randomCol + afterOrderBy;
+        String before = windowSpec.substring(0, insertPos);
+        String after = windowSpec.substring(insertPos);
+        
+        return before + ", " + firstCol + after;
     }
 
     /**
@@ -98,16 +102,22 @@ public class SQLite3MRUPMutationOperator {
      * ORDER BY x → ORDER BY x + 0
      */
     private static String mutationO2_OrderPreservingTransform(String windowSpec, List<SQLite3Column> columns) {
-        if (!windowSpec.contains("ORDER BY") || columns.isEmpty()) {
+        if (!windowSpec.contains("ORDER BY")) {
             return windowSpec;
         }
         
-        // Simple implementation: add " + 0" to a random column in ORDER BY
-        String randomCol = Randomly.fromList(columns).getName();
+        // Extract the first column name after ORDER BY
+        int orderByPos = windowSpec.indexOf("ORDER BY");
+        String afterOrderBy = windowSpec.substring(orderByPos + 9).trim();
+        String firstCol = afterOrderBy.split("\\s+")[0];
         
-        // Only replace if the column appears in ORDER BY
-        if (windowSpec.contains("ORDER BY " + randomCol)) {
-            return windowSpec.replace("ORDER BY " + randomCol, "ORDER BY (" + randomCol + " + 0)");
+        // Use simple string replacement to avoid regex issues
+        String searchStr = "ORDER BY " + firstCol;
+        String replaceStr = "ORDER BY (" + firstCol + " + 0)";
+        
+        int pos = windowSpec.indexOf(searchStr);
+        if (pos != -1) {
+            return windowSpec.substring(0, pos) + replaceStr + windowSpec.substring(pos + searchStr.length());
         }
         
         return windowSpec;
@@ -118,24 +128,24 @@ public class SQLite3MRUPMutationOperator {
      * PARTITION BY dept → PARTITION BY dept, dept
      */
     private static String mutationP1_RedundantPartitionBy(String windowSpec, List<SQLite3Column> columns) {
-        if (!windowSpec.contains("PARTITION BY") || columns.isEmpty()) {
+        if (!windowSpec.contains("PARTITION BY")) {
             return windowSpec;
         }
         
-        // Find PARTITION BY clause
+        // Extract the partition column (always "dept" in our case)
         int partitionPos = windowSpec.indexOf("PARTITION BY");
-        if (partitionPos == -1) return windowSpec;
+        String afterPartition = windowSpec.substring(partitionPos + 13).trim(); // "PARTITION BY " is 13 chars
+        String partCol = afterPartition.split("\\s+")[0]; // Get first word
         
-        // Find the end of PARTITION BY (before ORDER BY or closing paren)
-        int endPos = findPartitionByEnd(windowSpec, partitionPos);
+        // Find where ORDER BY starts or where to insert
+        int orderByPos = windowSpec.indexOf("ORDER BY", partitionPos);
+        int insertPos = (orderByPos != -1) ? orderByPos : windowSpec.indexOf(")", partitionPos);
         
-        String beforePartition = windowSpec.substring(0, endPos);
-        String afterPartition = windowSpec.substring(endPos);
+        String before = windowSpec.substring(0, insertPos);
+        String after = windowSpec.substring(insertPos);
         
-        // Add a duplicate column
-        String randomCol = Randomly.fromList(columns).getName();
-        
-        return beforePartition + ", " + randomCol + afterPartition;
+        // Add duplicate partition column
+        return before + ", " + partCol + " " + after;
     }
 
     /**

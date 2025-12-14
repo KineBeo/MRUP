@@ -141,15 +141,19 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         }
         
         // Step 3.3: Apply random mutations to window spec (Top 10 strategies)
-        // Randomly decide whether to apply mutations (50% chance for POC)
+        // ALWAYS apply mutations for testing
         String originalWindowSpec = windowSpec;
         boolean mutationApplied = false;
-        if (Randomly.getBoolean()) {
-            String mutatedSpec = SQLite3MRUPMutationOperator.applyRandomMutations(windowSpec, columns);
-            if (!mutatedSpec.equals(windowSpec)) {
-                windowSpec = mutatedSpec;
-                mutationApplied = true;
-            }
+        String mutatedSpec = SQLite3MRUPMutationOperator.applyRandomMutations(windowSpec, columns);
+        if (!mutatedSpec.equals(windowSpec)) {
+            windowSpec = mutatedSpec;
+            mutationApplied = true;
+            System.out.println("✓ MUTATION APPLIED:");
+            System.out.println("  Original: " + originalWindowSpec);
+            System.out.println("  Mutated:  " + windowSpec);
+        } else {
+            System.out.println("✗ NO MUTATION (pattern not found)");
+            System.out.println("  WindowSpec: " + windowSpec);
         }
         
         // Pick a random column for the window function (only for aggregate functions)
@@ -163,7 +167,8 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         
         // Log Step 3 to file: Window function generation with constraint verification
         Map<String, Boolean> constraints = verifyConstraints(functionType, windowSpec);
-        logger.logWindowFunctionGeneration(functionType, windowSpec, windowFunction, mutationApplied, constraints);
+        logger.logWindowFunctionGeneration(functionType, windowSpec, windowFunction, mutationApplied, 
+                                          originalWindowSpec, constraints);
 
         // Step 4: Execute queries
         // Q1: window function on t1
@@ -283,6 +288,7 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
 
         // C2: ORDER BY - must use only 'salary' or 'age' columns (numeric columns)
         // Always add ORDER BY for determinism
+        // Phase 1: M1.1 - Support up to 3 ORDER BY columns with mixed directions
         sb.append("ORDER BY ");
         List<SQLite3Column> orderableColumns = findOrderableColumns(columns);
         
@@ -290,9 +296,9 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
             // Fallback: use any column
             sb.append(Randomly.fromList(columns).getName());
         } else {
-            // Use 1-2 orderable columns
-            int numOrderCols = Randomly.getBoolean() ? 1 : 2;
-            numOrderCols = Math.min(numOrderCols, orderableColumns.size());
+            // Phase 1: M1.1 - Use 1-3 orderable columns (was 1-2)
+            int maxCols = Math.min(3, orderableColumns.size());
+            int numOrderCols = maxCols == 1 ? 1 : (maxCols == 2 ? Randomly.fromOptions(1, 2) : Randomly.fromOptions(1, 2, 3));
             
             for (int i = 0; i < numOrderCols; i++) {
                 if (i > 0) {
@@ -300,21 +306,17 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
                 }
                 sb.append(orderableColumns.get(i).getName());
                 
-                // Optional: ASC/DESC
-                if (Randomly.getBoolean()) {
-                    sb.append(Randomly.fromOptions(" ASC", " DESC"));
-                }
+                // Phase 1: M1.1 - Always add ASC/DESC for mixed directions
+                sb.append(Randomly.fromOptions(" ASC", " DESC"));
                 
-                // Optional: NULLS FIRST/LAST
-                if (Randomly.getBoolean()) {
-                    sb.append(Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"));
-                }
+                // Phase 1: M1.1 - Always add NULLS FIRST/LAST for complex ordering
+                sb.append(Randomly.fromOptions(" NULLS FIRST", " NULLS LAST"));
             }
         }
 
         // Store ORDER BY column count for frame validation (C4)
-        this.lastOrderByColumnCount = orderableColumns.isEmpty() ? 1 : 
-            (Randomly.getBoolean() ? 1 : Math.min(2, orderableColumns.size()));
+        int maxCols = orderableColumns.isEmpty() ? 1 : Math.min(3, orderableColumns.size());
+        this.lastOrderByColumnCount = maxCols == 1 ? 1 : (maxCols == 2 ? Randomly.fromOptions(1, 2) : Randomly.fromOptions(1, 2, 3));
 
         sb.append(")");
         return sb.toString();
@@ -370,30 +372,32 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         sb.append(frameType);
         sb.append(" ");
 
-        // Frame extent
+        // Phase 1: M1.2 - Complex frame specifications
         if (Randomly.getBoolean()) {
             // Simple frame start (implicit: AND CURRENT ROW)
             sb.append(Randomly.fromOptions(
                 "UNBOUNDED PRECEDING",
                 "CURRENT ROW",
                 "1 PRECEDING",
-                "2 PRECEDING"
+                "2 PRECEDING",
+                "3 PRECEDING"  // Phase 1: M1.2 - Added
             ));
         } else {
-            // BETWEEN frame (explicit boundaries)
+            // Phase 1: M1.2 - BETWEEN frame with more complex boundaries
             sb.append("BETWEEN ");
             sb.append(Randomly.fromOptions(
                 "UNBOUNDED PRECEDING",
                 "CURRENT ROW",
-                "1 PRECEDING",
-                "2 PRECEDING"
+                "3 PRECEDING",  // Phase 1: M1.2 - Added
+                "2 PRECEDING",
+                "1 PRECEDING"
             ));
             sb.append(" AND ");
             sb.append(Randomly.fromOptions(
                 "CURRENT ROW",
                 "UNBOUNDED FOLLOWING",
                 "1 FOLLOWING",
-                "2 FOLLOWING"
+                "2 FOLLOWING"  // Phase 1: M1.2 - Added more FOLLOWING options
             ));
         }
 

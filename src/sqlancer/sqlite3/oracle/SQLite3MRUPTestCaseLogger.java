@@ -151,6 +151,7 @@ public class SQLite3MRUPTestCaseLogger {
      */
     public void logWindowFunctionGeneration(String functionType, String windowSpec, 
                                             String fullFunction, boolean mutationApplied,
+                                            String originalWindowSpec,
                                             Map<String, Boolean> constraints) {
         if (!LOGGING_ENABLED) return;
         
@@ -161,14 +162,18 @@ public class SQLite3MRUPTestCaseLogger {
         logBuffer.append("🎯 Generated Window Function:\n");
         logBuffer.append("   ").append(fullFunction).append("\n\n");
         
+        if (mutationApplied) {
+            logBuffer.append("🔄 Mutation Applied:\n");
+            logBuffer.append("   Original:  ").append(originalWindowSpec).append("\n");
+            logBuffer.append("   Mutated:   ").append(windowSpec).append("\n\n");
+        } else {
+            logBuffer.append("🔄 Mutation: Not Applied (pattern not found)\n\n");
+        }
+        
         logBuffer.append("📋 Constraint Verification:\n");
         for (Map.Entry<String, Boolean> entry : constraints.entrySet()) {
             logBuffer.append("   ").append(entry.getKey()).append(": ");
             logBuffer.append(entry.getValue() ? "✓ PASS" : "✗ FAIL").append("\n");
-        }
-        
-        if (mutationApplied) {
-            logBuffer.append("\n🔄 Mutation: Applied\n");
         }
         
         logBuffer.append("\n─────────────────────────────────────────────────────────────────────\n\n");
