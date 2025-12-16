@@ -106,30 +106,49 @@ public class SQLite3MRUPTablePairGenerator {
 
     /**
      * Generate MRUP-compliant schema with:
-     * - Mandatory partition column (VARCHAR)
-     * - Mandatory order columns (INTEGER)
-     * - Optional additional columns
+     * - Mandatory partition column (TEXT)
+     * - Mandatory order columns (INTEGER/REAL)
+     * - Optional additional columns (with diversity)
+     * 
+     * Phase A Improvements:
+     * - Variable column count (3-7 columns total)
+     * - Type diversity (INTEGER, REAL, TEXT)
+     * - More nullable columns
      */
     private MRUPSchema generateMRUPSchema() {
         MRUPSchema schema = new MRUPSchema();
         
-        // 1. Mandatory partition column
+        // 1. Mandatory partition column (always TEXT for disjoint partitions)
         schema.partitionColumn = new ColumnDef("dept", "TEXT");
         
         // 2. Mandatory order columns (1-2 columns)
         schema.orderColumns = new ArrayList<>();
-        schema.orderColumns.add(new ColumnDef("salary", "INTEGER"));
         
-        if (Randomly.getBoolean()) {
+        // First order column: salary (INTEGER or REAL for diversity)
+        String salaryType = Randomly.fromOptions("INTEGER", "INTEGER", "REAL"); // 66% INTEGER, 33% REAL
+        schema.orderColumns.add(new ColumnDef("salary", salaryType));
+        
+        // Second order column: age (optional, 70% chance)
+        if (Randomly.getBooleanWithRatherLowProbability()) {
             schema.orderColumns.add(new ColumnDef("age", "INTEGER"));
         }
         
-        // 3. Optional additional columns (0-2)
+        // 3. Additional columns (1-4 columns for diversity)
+        // Phase A: Increased from 0-2 to 1-4
         schema.additionalColumns = new ArrayList<>();
-        int numAdditional = Randomly.fromOptions(0, 1, 2);
+        int numAdditional = Randomly.fromOptions(1, 2, 2, 3, 4); // Weighted: more likely 2-3
+        
         for (int i = 0; i < numAdditional; i++) {
             String colName = "c" + i;
-            String colType = Randomly.fromOptions("INTEGER", "TEXT", "REAL");
+            
+            // Phase A: Type diversity
+            // 40% INTEGER, 30% REAL, 30% TEXT
+            String colType = Randomly.fromOptions(
+                "INTEGER", "INTEGER",  // 40%
+                "REAL", "REAL", "REAL", // 30%
+                "TEXT", "TEXT", "TEXT"  // 30%
+            );
+            
             schema.additionalColumns.add(new ColumnDef(colName, colType));
         }
         
@@ -174,14 +193,22 @@ public class SQLite3MRUPTablePairGenerator {
      * @param schema The schema definition
      * @param useSetA If true, use partition Set A; otherwise use Set B
      */
+    /**
+     * Insert data with DISJOINT partitions.
+     * 
+     * Phase A Improvements:
+     * - Reduced row count (3-8 rows instead of 5-20) for better performance
+     * - Edge case data generation
+     * 
+     * @param table The table to insert into
+     * @param schema The schema definition
+     * @param useSetA If true, use partition Set A; otherwise use Set B
+     */
     private void insertDataWithDisjointPartitions(SQLite3Table table, MRUPSchema schema, boolean useSetA) {
         String[] partitionSet = useSetA ? PARTITION_SET_A : PARTITION_SET_B;
         
-        // Generate 5-20 rows (as per spec)
-        int numRows = 5 + Randomly.smallNumber();
-        if (numRows > 20) {
-            numRows = 20;
-        }
+        // Phase A: Reduced row count for performance (3-8 rows instead of 5-20)
+        int numRows = Randomly.fromOptions(3, 4, 5, 6, 7, 8);
         
         // Ensure we have 2-3 partitions per table
         int numPartitions = Randomly.fromOptions(2, 3);
@@ -195,8 +222,6 @@ public class SQLite3MRUPTablePairGenerator {
         // Add NULL partition ONLY in table1 (useSetA=true) to ensure disjoint
         // If both tables had NULL, they would overlap
         boolean includeNullPartition = useSetA && Randomly.getBoolean() && Randomly.getBoolean();
-        
-        // Silently insert rows (verbose logging removed)
         
         // Insert rows
         for (int i = 0; i < numRows; i++) {
@@ -217,13 +242,6 @@ public class SQLite3MRUPTablePairGenerator {
                 // Silently continue
             }
         }
-        
-        // Ensure at least 5 rows exist
-        try {
-            ensureMinimumRows(table, schema, selectedPartitions);
-        } catch (Exception e) {
-            // Silently continue
-        }
     }
 
     /**
@@ -240,41 +258,97 @@ public class SQLite3MRUPTablePairGenerator {
             sb.append("'").append(partitionValue).append("'");
         }
         
-        // Order columns (generate random integers)
+        // Order columns (generate values with edge cases)
         for (int i = 0; i < schema.orderColumns.size(); i++) {
             sb.append(", ");
             ColumnDef col = schema.orderColumns.get(i);
+            
             if (col.type.contains("INTEGER")) {
-                // Generate salary: 20000-100000, age: 20-65
+                // Phase A: Add edge cases with low probability (10%)
                 if (col.name.equals("salary")) {
-                    long salaryLong = 20000 + Randomly.getNotCachedInteger(0, 80000);
-                    // Round to nearest 5000 to create some duplicates
-                    long salary = (salaryLong / 5000) * 5000;
-                    sb.append(salary);
+                    // Salary: mostly 20000-100000, but 10% edge cases
+                    if (Randomly.getBooleanWithSmallProbability()) {
+                        // Edge cases: MIN_INT, MAX_INT, 0, -1, 1
+                        sb.append(Randomly.fromOptions(
+                            String.valueOf(Integer.MIN_VALUE),
+                            String.valueOf(Integer.MAX_VALUE),
+                            "0", "-1", "1"
+                        ));
+                    } else {
+                        // Normal range: 20000-100000
+                        long salaryLong = 20000 + Randomly.getNotCachedInteger(0, 80000);
+                        // Round to nearest 5000 to create some duplicates
+                        long salary = (salaryLong / 5000) * 5000;
+                        sb.append(salary);
+                    }
                 } else if (col.name.equals("age")) {
-                    sb.append(20 + Randomly.getNotCachedInteger(0, 45));
+                    // Age: mostly 20-65, but 10% edge cases
+                    if (Randomly.getBooleanWithSmallProbability()) {
+                        sb.append(Randomly.fromOptions("0", "1", "-1", "100", "200"));
+                    } else {
+                        sb.append(20 + Randomly.getNotCachedInteger(0, 45));
+                    }
                 } else {
                     sb.append(Randomly.getNotCachedInteger(-1000000, 1000000));
+                }
+            } else if (col.type.contains("REAL")) {
+                // Phase A: REAL type support with edge cases
+                if (Randomly.getBooleanWithSmallProbability()) {
+                    // Edge cases: 0.0, -1.0, 1.0, very large/small
+                    sb.append(Randomly.fromOptions("0.0", "-1.0", "1.0", "999999.99", "-999999.99"));
+                } else {
+                    // Normal range
+                    long salaryLong = 20000 + Randomly.getNotCachedInteger(0, 80000);
+                    double salary = salaryLong + (Randomly.getNotCachedInteger(0, 100) / 100.0);
+                    sb.append(salary);
                 }
             } else {
                 sb.append(Randomly.getNotCachedInteger(-1000000, 1000000));
             }
         }
         
-        // Additional columns
+        // Additional columns (Phase A: improved NULL handling and edge cases)
         for (ColumnDef col : schema.additionalColumns) {
             sb.append(", ");
             
-            // 20% chance of NULL
-            if (Randomly.getBoolean() && Randomly.getBoolean() && Randomly.getBoolean()) {
+            // Phase A: 30% chance of NULL (increased from 20%)
+            if (Randomly.getBooleanWithRatherLowProbability()) {
                 sb.append("NULL");
             } else if (col.type.contains("INTEGER")) {
-                sb.append(Randomly.getNotCachedInteger(-1000000, 1000000));
+                // Phase A: 15% edge cases for additional INTEGER columns
+                if (Randomly.getBooleanWithSmallProbability()) {
+                    sb.append(Randomly.fromOptions(
+                        String.valueOf(Integer.MIN_VALUE),
+                        String.valueOf(Integer.MAX_VALUE),
+                        "0", "-1", "1", "100", "-100"
+                    ));
+                } else {
+                    // Normal range with intentional duplicates
+                    long value = Randomly.getNotCachedInteger(-1000000, 1000000);
+                    // Round to create duplicates (20% chance)
+                    if (Randomly.getBoolean() && Randomly.getBoolean()) {
+                        value = (value / 1000) * 1000;
+                    }
+                    sb.append(value);
+                }
             } else if (col.type.contains("TEXT")) {
-                String text = Randomly.fromOptions("A", "B", "C", "Test", "Data", "Value");
+                // Phase A: More diverse TEXT values
+                String text = Randomly.fromOptions(
+                    "A", "B", "C", "Test", "Data", "Value",
+                    "", "X", "Y", "Z", "Alpha", "Beta"  // Added more options
+                );
                 sb.append("'").append(text).append("'");
             } else if (col.type.contains("REAL")) {
-                sb.append(Randomly.getNotCachedInteger(0, 100000) / 1000.0);
+                // Phase A: REAL with edge cases
+                if (Randomly.getBooleanWithSmallProbability()) {
+                    sb.append(Randomly.fromOptions(
+                        "0.0", "-1.0", "1.0", "0.5", "-0.5",
+                        "999999.99", "-999999.99"
+                    ));
+                } else {
+                    double value = Randomly.getNotCachedInteger(-100000, 100000) / 100.0;
+                    sb.append(value);
+                }
             } else {
                 sb.append("0");
             }
@@ -297,8 +371,8 @@ public class SQLite3MRUPTablePairGenerator {
             if (rs.next()) {
                 int count = rs.getInt(1);
                 
-                // If less than 5 rows, insert more
-                while (count < 5) {
+                // If less than 1 rows, insert more
+                while (count < 1) {
                     try {
                         String partition = Randomly.fromList(partitions);
                         insertRow(table, schema, partition);

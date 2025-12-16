@@ -16,3 +16,5 @@ database*.script
 databases/
 mrup_logs/
 reproduction_*.sql
+latex_report/*
+latex_report

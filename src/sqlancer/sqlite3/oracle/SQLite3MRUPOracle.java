@@ -148,12 +148,7 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         if (!mutatedSpec.equals(windowSpec)) {
             windowSpec = mutatedSpec;
             mutationApplied = true;
-            System.out.println("✓ MUTATION APPLIED:");
-            System.out.println("  Original: " + originalWindowSpec);
-            System.out.println("  Mutated:  " + windowSpec);
         } else {
-            System.out.println("✗ NO MUTATION (pattern not found)");
-            System.out.println("  WindowSpec: " + windowSpec);
         }
         
         // Pick a random column for the window function (only for aggregate functions)
@@ -162,13 +157,115 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         // Generate window function
         String windowFunction = generateWindowFunction(functionType, targetColumn, windowSpec);
         
+        // Phase 3: Apply CASE WHEN mutations (100% mutation rate for diversity)
+        String originalWindowFunction = windowFunction;
+        String caseMutationType = "None";
+        
+        // Always apply a CASE mutation for maximum diversity
+        // Use weighted random selection: 30%, 25%, 20%, 15%, 10%
+        // 1=30%, 2=25%, 3=20%, 4=15%, 5=10%
+        int mutationChoice = Randomly.fromOptions(
+            1, 1, 1,        // 30% - Constant Condition
+            2, 2, 2,        // 25% - Window Function in WHEN (increased from 2)
+            3, 3,           // 20% - Different Window Functions
+            4, 4,           // 15% - Identical Branches (increased from 1)
+            5               // 10% - NULL Handling
+        );
+        
+        if (mutationChoice == 1) {
+            // Phase 3.0: Constant conditions (30%)
+            windowFunction = SQLite3MRUPCaseMutator.applyConstantCondition(windowFunction);
+            caseMutationType = "Constant Condition";
+            
+        } else if (mutationChoice == 2) {
+            // Phase 3.1: Window function in WHEN (25%)
+            windowFunction = SQLite3MRUPCaseMutator.applyWindowFunctionCondition(windowFunction);
+            caseMutationType = "Window Function in WHEN";
+            
+        } else if (mutationChoice == 3) {
+            // Phase 3.2: Different window functions per branch (20%)
+            String condition = SQLite3MRUPCaseMutator.generatePartitionLocalCondition(columns);
+            windowFunction = SQLite3MRUPCaseMutator.applyDifferentWindowFunctions(
+                functionType, windowSpec, columns, condition);
+            caseMutationType = "Different Window Functions";
+            
+        } else if (mutationChoice == 4) {
+            // Phase 3.3: Identical branches (15%)
+            String condition = SQLite3MRUPCaseMutator.generatePartitionLocalCondition(columns);
+            windowFunction = SQLite3MRUPCaseMutator.applyIdenticalBranches(
+                windowFunction, condition);
+            caseMutationType = "Identical Branches";
+            
+        } else {
+            // Phase 3.4: NULL handling (10%)
+            // Find a nullable column (c0, c1, or any non-dept column)
+            SQLite3Column nullableCol = null;
+            for (SQLite3Column col : columns) {
+                String name = col.getName();
+                if (!name.equals("dept") && !name.equals("salary") && !name.equals("age")) {
+                    nullableCol = col;
+                    break;
+                }
+            }
+            
+            if (nullableCol != null) {
+                windowFunction = SQLite3MRUPCaseMutator.applyNullHandling(
+                    windowFunction, nullableCol.getName());
+                caseMutationType = "NULL Handling";
+            } else {
+                // Fallback to constant condition if no nullable column
+                windowFunction = SQLite3MRUPCaseMutator.applyConstantCondition(windowFunction);
+                caseMutationType = "Constant Condition (fallback)";
+            }
+        }
+        
+        // Store after CASE mutation
+        String afterCaseMutation = windowFunction;
+        
+        // Stage 1: Apply Identity Wrapper Mutations (60% of queries)
+        // This is the CRITICAL missing piece based on real-world bug survey
+        String beforeIdentity = windowFunction;
+        String identityMutationType = "None";
+        
+        // 60% chance to apply identity mutation (6 out of 10)
+        if (globalState.getRandomly().getInteger(0, 10) < 6) {
+            windowFunction = SQLite3MRUPIdentityMutator.applyIdentityWrapper(windowFunction, functionType);
+            identityMutationType = SQLite3MRUPIdentityMutator.getMutationDescription(beforeIdentity, windowFunction);
+        }
+        
+        // Determine window spec mutation description
+        String windowSpecMutationDesc = "None";
+        if (mutationApplied) {
+            // Try to detect which mutation was applied
+            if (!originalWindowSpec.equals(windowSpec)) {
+                if (windowSpec.contains(", dept")) {
+                    windowSpecMutationDesc = "Redundant PARTITION BY";
+                } else if (windowSpec.contains(" + 0")) {
+                    windowSpecMutationDesc = "Order-Preserving Transform";
+                } else {
+                    windowSpecMutationDesc = "Window Spec Mutation";
+                }
+            }
+        }
+        
+        // Log unified mutation pipeline (replaces all scattered logs)
+        logger.logMutationPipeline(
+            originalWindowFunction,                    // Base window function
+            windowSpecMutationDesc,                    // Window spec mutation type
+            mutationApplied,                           // Was window spec mutated?
+            mutationApplied ? windowSpec : "N/A",      // After window spec mutation
+            caseMutationType,                          // CASE mutation type
+            afterCaseMutation,                         // After CASE mutation
+            identityMutationType,                      // Identity mutation type
+            windowFunction                             // Final window function
+        );
+        
         // Phase 3: Parse window spec for MRUP normalization
         this.currentWindowSpec = parseWindowSpec(windowSpec, columns);
         
-        // Log Step 3 to file: Window function generation with constraint verification
+        // Log constraint verification separately
         Map<String, Boolean> constraints = verifyConstraints(functionType, windowSpec);
-        logger.logWindowFunctionGeneration(functionType, windowSpec, windowFunction, mutationApplied, 
-                                          originalWindowSpec, constraints);
+        logger.logConstraintVerification(constraints);
 
         // Step 4: Execute queries
         // Q1: window function on t1
@@ -614,57 +711,6 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         return lastQueryString;
     }
     
-    /**
-     * Log comprehensive table information including schema, data, and partition validation.
-     * Step 1 & 2: Table Schema and Data
-     */
-    /**
-     * Old logging methods removed - now using file-based logging via SQLite3MRUPTestCaseLogger
-     */
-    
-    /**
-     * Print table information including schema and data
-     */
-    // private void printTableInfo(SQLite3Table table, String label) {
-    //     try {
-    //         System.out.println("\n" + label + ": " + table.getName());
-            
-    //         // Print schema
-    //         System.out.print("  Schema: (");
-    //         List<SQLite3Column> cols = table.getColumns();
-    //         for (int i = 0; i < cols.size(); i++) {
-    //             if (i > 0) System.out.print(", ");
-    //             System.out.print(cols.get(i).getName() + " " + cols.get(i).getType());
-    //         }
-    //         System.out.println(")");
-            
-    //         // Print row count
-    //         long rowCount = table.getNrRows(globalState);
-    //         System.out.println("  Rows: " + rowCount);
-            
-    //         // Print actual data (first 5 rows)
-    //         if (rowCount > 0) {
-    //             String dataQuery = "SELECT * FROM " + table.getName() + " LIMIT 5";
-    //             try (Statement stmt = globalState.getConnection().createStatement()) {
-    //                 ResultSet rs = stmt.executeQuery(dataQuery);
-    //                 System.out.println("  Data:");
-    //                 int rowNum = 0;
-    //                 while (rs.next() && rowNum < 5) {
-    //                     System.out.print("    Row " + (rowNum + 1) + ": ");
-    //                     for (int i = 0; i < cols.size(); i++) {
-    //                         if (i > 0) System.out.print(", ");
-    //                         Object value = rs.getObject(i + 1);
-    //                         System.out.print(cols.get(i).getName() + "=" + value);
-    //                     }
-    //                     System.out.println();
-    //                     rowNum++;
-    //                 }
-    //             }
-    //         }
-    //     } catch (Exception e) {
-    //         System.out.println("  Error printing table info: " + e.getMessage());
-    //     }
-    // }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PHASE 3: MRUP NORMALIZATION & SMART COMPARISON

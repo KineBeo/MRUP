@@ -147,34 +147,79 @@ public class SQLite3MRUPTestCaseLogger {
     }
     
     /**
-     * Log Step 3: Window function generation.
+     * Log constraint verification (now separate from mutation pipeline).
      */
-    public void logWindowFunctionGeneration(String functionType, String windowSpec, 
-                                            String fullFunction, boolean mutationApplied,
-                                            String originalWindowSpec,
-                                            Map<String, Boolean> constraints) {
+    public void logConstraintVerification(Map<String, Boolean> constraints) {
         if (!LOGGING_ENABLED) return;
         
         logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
-        logBuffer.append("│ STEP 3: Window Function Generation (Constraint Verification)      │\n");
+        logBuffer.append("│ STEP 3B: Constraint Verification                                  │\n");
         logBuffer.append("└───────────────────────────────────────────────────────────────────┘\n\n");
-        
-        logBuffer.append("🎯 Generated Window Function:\n");
-        logBuffer.append("   ").append(fullFunction).append("\n\n");
-        
-        if (mutationApplied) {
-            logBuffer.append("🔄 Mutation Applied:\n");
-            logBuffer.append("   Original:  ").append(originalWindowSpec).append("\n");
-            logBuffer.append("   Mutated:   ").append(windowSpec).append("\n\n");
-        } else {
-            logBuffer.append("🔄 Mutation: Not Applied (pattern not found)\n\n");
-        }
         
         logBuffer.append("📋 Constraint Verification:\n");
         for (Map.Entry<String, Boolean> entry : constraints.entrySet()) {
             logBuffer.append("   ").append(entry.getKey()).append(": ");
             logBuffer.append(entry.getValue() ? "✓ PASS" : "✗ FAIL").append("\n");
         }
+        
+        logBuffer.append("\n─────────────────────────────────────────────────────────────────────\n\n");
+    }
+    
+    /**
+     * Log complete mutation pipeline (replaces individual mutation logs).
+     * Shows end-to-end transformation from base window function to final mutated query.
+     */
+    public void logMutationPipeline(
+            String baseWindowFunction,
+            String windowSpecMutation,
+            boolean windowSpecMutated,
+            String afterWindowSpecMutation,
+            String caseMutationType,
+            String afterCaseMutation,
+            String identityMutationType,
+            String finalWindowFunction) {
+        if (!LOGGING_ENABLED) return;
+        
+        logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
+        logBuffer.append("│ STEP 3: Mutation Pipeline (End-to-End Query Transformation)      │\n");
+        logBuffer.append("└───────────────────────────────────────────────────────────────────┘\n\n");
+        
+        logBuffer.append("🔹 BASE WINDOW FUNCTION:\n");
+        logBuffer.append("   ").append(baseWindowFunction).append("\n\n");
+        
+        // Phase 1: Window Spec Mutations
+        logBuffer.append("📍 PHASE 1: Window Spec Mutations\n");
+        if (windowSpecMutated) {
+            logBuffer.append("   ✓ Applied: ").append(windowSpecMutation).append("\n");
+            logBuffer.append("   Result:    ").append(afterWindowSpecMutation).append("\n");
+        } else {
+            logBuffer.append("   ✗ Not Applied\n");
+        }
+        logBuffer.append("\n");
+        
+        // Phase 3: CASE WHEN Mutations
+        logBuffer.append("📍 PHASE 3: CASE WHEN Mutations\n");
+        logBuffer.append("   ✓ Applied: ").append(caseMutationType).append("\n");
+        logBuffer.append("   Result:    ").append(afterCaseMutation).append("\n\n");
+        
+        // Stage 1: Identity Wrapper Mutations
+        logBuffer.append("📍 STAGE 1: Identity Wrapper Mutations\n");
+        if (!identityMutationType.equals("None")) {
+            logBuffer.append("   ✓ Applied: ").append(identityMutationType).append("\n");
+            logBuffer.append("   Result:    ").append(finalWindowFunction).append("\n");
+        } else {
+            logBuffer.append("   ✗ Not Applied\n");
+        }
+        logBuffer.append("\n");
+        
+        // Summary
+        logBuffer.append("🎯 FINAL QUERY:\n");
+        logBuffer.append("   ").append(finalWindowFunction).append("\n\n");
+        
+        logBuffer.append("📊 MUTATION SUMMARY:\n");
+        logBuffer.append("   • Window Spec:  ").append(windowSpecMutated ? "✓ " + windowSpecMutation : "✗ None").append("\n");
+        logBuffer.append("   • CASE WHEN:    ✓ ").append(caseMutationType).append("\n");
+        logBuffer.append("   • Identity:     ").append(!identityMutationType.equals("None") ? "✓ " + identityMutationType : "✗ None").append("\n");
         
         logBuffer.append("\n─────────────────────────────────────────────────────────────────────\n\n");
     }
