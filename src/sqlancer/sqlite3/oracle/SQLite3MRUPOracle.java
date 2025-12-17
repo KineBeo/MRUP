@@ -113,16 +113,20 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
 
         // Step 3: Generate window function type first (to determine if frame is allowed)
         // C5: Only use deterministic functions
-        String functionType = Randomly.fromOptions(
-            "ROW_NUMBER",    // Ranking - no frame
-            "RANK",          // Ranking - no frame
-            "DENSE_RANK",    // Ranking - no frame
-            "SUM",           // Aggregate - frame allowed
-            "AVG",           // Aggregate - frame allowed
-            "COUNT",         // Aggregate - frame allowed
-            "MIN",           // Aggregate - frame allowed
-            "MAX"            // Aggregate - frame allowed
-        );
+        // Prioritize aggregate functions (98%) to maximize identity mutation opportunities
+        // Ranking functions (ROW_NUMBER, RANK, DENSE_RANK) have no arguments to mutate
+        String functionType;
+        if (globalState.getRandomly().getInteger(0, 100) < 98) {
+            // 98% aggregate functions (can have identity mutations)
+            functionType = Randomly.fromOptions(
+                "SUM", "AVG", "COUNT", "MIN", "MAX"
+            );
+        } else {
+            // 2% ranking functions (no identity mutations possible)
+            functionType = Randomly.fromOptions(
+                "ROW_NUMBER", "RANK", "DENSE_RANK"
+            );
+        }
         this.lastWindowFunctionType = functionType;
         
         // Step 3.1: Generate window spec with constraints
@@ -141,14 +145,16 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         }
         
         // Step 3.3: Apply random mutations to window spec (Top 10 strategies)
-        // ALWAYS apply mutations for testing
+        // Try up to 5 times to apply a mutation (90% overall success rate target)
         String originalWindowSpec = windowSpec;
         boolean mutationApplied = false;
-        String mutatedSpec = SQLite3MRUPMutationOperator.applyRandomMutations(windowSpec, columns);
-        if (!mutatedSpec.equals(windowSpec)) {
-            windowSpec = mutatedSpec;
-            mutationApplied = true;
-        } else {
+        int maxAttempts = 5;
+        for (int attempt = 0; attempt < maxAttempts && !mutationApplied; attempt++) {
+            String mutatedSpec = SQLite3MRUPMutationOperator.applyRandomMutations(windowSpec, columns);
+            if (!mutatedSpec.equals(windowSpec)) {
+                windowSpec = mutatedSpec;
+                mutationApplied = true;
+            }
         }
         
         // Pick a random column for the window function (only for aggregate functions)
@@ -157,8 +163,28 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         // Generate window function
         String windowFunction = generateWindowFunction(functionType, targetColumn, windowSpec);
         
-        // Phase 3: Apply CASE WHEN mutations (100% mutation rate for diversity)
+        // Stage 1: Apply Identity Wrapper Mutations FIRST (98% of queries with arguments)
+        // CRITICAL: Apply identity mutation to the BASE window function BEFORE CASE wrapping
+        // This ensures: CASE WHEN ... THEN NULL ELSE (wf + 0) END
+        // NOT: (CASE WHEN ... THEN NULL ELSE wf END) + 0
         String originalWindowFunction = windowFunction;
+        String beforeIdentity = windowFunction;
+        String identityMutationType = "None";
+        
+        // 98% chance to apply identity mutation (will skip if no argument to mutate)
+        if (globalState.getRandomly().getInteger(0, 100) < 98) {
+            String mutatedWF = SQLite3MRUPIdentityMutator.applyIdentityWrapper(windowFunction, functionType);
+            if (!mutatedWF.equals(windowFunction)) {
+                windowFunction = mutatedWF;
+                identityMutationType = SQLite3MRUPIdentityMutator.getMutationDescription(beforeIdentity, windowFunction);
+            }
+        }
+        
+        // Store after identity mutation (this is the base for CASE wrapping)
+        String afterIdentityMutation = windowFunction;
+        
+        // Phase 3: Apply CASE WHEN mutations (100% mutation rate for diversity)
+        // CASE mutations wrap the (possibly identity-mutated) window function
         String caseMutationType = "None";
         
         // Always apply a CASE mutation for maximum diversity
@@ -222,17 +248,6 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         // Store after CASE mutation
         String afterCaseMutation = windowFunction;
         
-        // Stage 1: Apply Identity Wrapper Mutations (60% of queries)
-        // This is the CRITICAL missing piece based on real-world bug survey
-        String beforeIdentity = windowFunction;
-        String identityMutationType = "None";
-        
-        // 60% chance to apply identity mutation (6 out of 10)
-        if (globalState.getRandomly().getInteger(0, 10) < 6) {
-            windowFunction = SQLite3MRUPIdentityMutator.applyIdentityWrapper(windowFunction, functionType);
-            identityMutationType = SQLite3MRUPIdentityMutator.getMutationDescription(beforeIdentity, windowFunction);
-        }
-        
         // Determine window spec mutation description
         String windowSpecMutationDesc = "None";
         if (mutationApplied) {
@@ -249,14 +264,16 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         }
         
         // Log unified mutation pipeline (replaces all scattered logs)
+        // Order: Window Spec → Identity → CASE (Identity now applied BEFORE CASE)
         logger.logMutationPipeline(
             originalWindowFunction,                    // Base window function
             windowSpecMutationDesc,                    // Window spec mutation type
             mutationApplied,                           // Was window spec mutated?
             mutationApplied ? windowSpec : "N/A",      // After window spec mutation
-            caseMutationType,                          // CASE mutation type
+            identityMutationType,                      // Identity mutation type (NOW BEFORE CASE)
+            afterIdentityMutation,                     // After identity mutation
+            caseMutationType,                          // CASE mutation type (NOW AFTER IDENTITY)
             afterCaseMutation,                         // After CASE mutation
-            identityMutationType,                      // Identity mutation type
             windowFunction                             // Final window function
         );
         
@@ -536,8 +553,9 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
                 funcName = "AVG(" + column.getName() + ")";
                 break;
             case "COUNT":
-                // Randomly choose COUNT(*) or COUNT(column)
-                funcName = Randomly.getBoolean() ? "COUNT(*)" : "COUNT(" + column.getName() + ")";
+                // Always use COUNT(column) to enable identity mutations
+                // COUNT(*) has no argument to mutate
+                funcName = "COUNT(" + column.getName() + ")";
                 break;
             case "MIN":
                 funcName = "MIN(" + column.getName() + ")";

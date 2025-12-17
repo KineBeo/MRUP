@@ -168,15 +168,19 @@ public class SQLite3MRUPTestCaseLogger {
     /**
      * Log complete mutation pipeline (replaces individual mutation logs).
      * Shows end-to-end transformation from base window function to final mutated query.
+     * 
+     * CORRECTED ORDER: Window Spec → Identity → CASE
+     * This ensures identity mutations target the window function, not the CASE wrapper.
      */
     public void logMutationPipeline(
             String baseWindowFunction,
             String windowSpecMutation,
             boolean windowSpecMutated,
             String afterWindowSpecMutation,
+            String identityMutationType,
+            String afterIdentityMutation,
             String caseMutationType,
             String afterCaseMutation,
-            String identityMutationType,
             String finalWindowFunction) {
         if (!LOGGING_ENABLED) return;
         
@@ -197,20 +201,20 @@ public class SQLite3MRUPTestCaseLogger {
         }
         logBuffer.append("\n");
         
-        // Phase 3: CASE WHEN Mutations
-        logBuffer.append("📍 PHASE 3: CASE WHEN Mutations\n");
-        logBuffer.append("   ✓ Applied: ").append(caseMutationType).append("\n");
-        logBuffer.append("   Result:    ").append(afterCaseMutation).append("\n\n");
-        
-        // Stage 1: Identity Wrapper Mutations
+        // Stage 1: Identity Wrapper Mutations (NOW BEFORE CASE!)
         logBuffer.append("📍 STAGE 1: Identity Wrapper Mutations\n");
         if (!identityMutationType.equals("None")) {
             logBuffer.append("   ✓ Applied: ").append(identityMutationType).append("\n");
-            logBuffer.append("   Result:    ").append(finalWindowFunction).append("\n");
+            logBuffer.append("   Result:    ").append(afterIdentityMutation).append("\n");
         } else {
             logBuffer.append("   ✗ Not Applied\n");
         }
         logBuffer.append("\n");
+        
+        // Phase 3: CASE WHEN Mutations (NOW AFTER IDENTITY!)
+        logBuffer.append("📍 PHASE 3: CASE WHEN Mutations\n");
+        logBuffer.append("   ✓ Applied: ").append(caseMutationType).append("\n");
+        logBuffer.append("   Result:    ").append(afterCaseMutation).append("\n\n");
         
         // Summary
         logBuffer.append("🎯 FINAL QUERY:\n");
@@ -218,8 +222,8 @@ public class SQLite3MRUPTestCaseLogger {
         
         logBuffer.append("📊 MUTATION SUMMARY:\n");
         logBuffer.append("   • Window Spec:  ").append(windowSpecMutated ? "✓ " + windowSpecMutation : "✗ None").append("\n");
-        logBuffer.append("   • CASE WHEN:    ✓ ").append(caseMutationType).append("\n");
         logBuffer.append("   • Identity:     ").append(!identityMutationType.equals("None") ? "✓ " + identityMutationType : "✗ None").append("\n");
+        logBuffer.append("   • CASE WHEN:    ✓ ").append(caseMutationType).append("\n");
         
         logBuffer.append("\n─────────────────────────────────────────────────────────────────────\n\n");
     }

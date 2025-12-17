@@ -5,11 +5,15 @@ import sqlancer.Randomly;
 /**
  * Stage 1: Identity Wrapper Mutations for MRUP Oracle
  * 
- * Implements identity transformations that wrap window function results in
- * semantically equivalent expressions. These mutations target optimizer bugs
- * by forcing different execution paths while preserving query semantics.
+ * CRITICAL PRINCIPLE:
+ * Identity mutations MUST be applied to the window function core (aggregate argument),
+ * NOT to the windowed expression as a whole.
  * 
- * Based on real-world bug survey: 80% of optimizer bugs involve identity transformations!
+ * ❌ INVALID: (COUNT(c1) OVER (...)) + 0
+ * ✅ VALID:   COUNT(c1 + 0) OVER (...)
+ * 
+ * This targets optimizer bugs in expression evaluation INSIDE window aggregation,
+ * which is where most real-world bugs occur.
  * 
  * All mutations preserve MRUP semantics:
  * - Partition locality is maintained
@@ -19,37 +23,98 @@ import sqlancer.Randomly;
 public class SQLite3MRUPIdentityMutator {
 
     /**
-     * Apply identity wrapper mutation to window function result.
+     * Apply identity mutation to window function argument.
      * 
-     * Selects mutation based on function type to ensure semantic correctness.
+     * Parses: FUNC(arg) OVER (...) → FUNC(mutated_arg) OVER (...)
      * 
      * @param windowFunction The complete window function expression (e.g., "SUM(salary) OVER (...)")
      * @param functionType The window function type (SUM, AVG, COUNT, ROW_NUMBER, etc.)
-     * @return Mutated expression that is semantically equivalent
+     * @return Mutated expression with identity transformation applied to argument
      */
     public static String applyIdentityWrapper(String windowFunction, String functionType) {
-        // Type-aware selection: numeric functions get full mutation set
-        if (isNumericFunction(functionType)) {
-            return applyNumericIdentity(windowFunction, functionType);
-        } else {
-            // Non-numeric functions (rare, but handle gracefully)
-            return applyGenericIdentity(windowFunction);
+        // Parse window function into core and OVER clause
+        WindowFunctionParts parts = parseWindowFunction(windowFunction, functionType);
+        
+        if (parts == null || parts.argument == null) {
+            // Cannot mutate (e.g., ROW_NUMBER(), RANK(), COUNT(*))
+            return windowFunction;
         }
+        
+        // Apply identity mutation to the argument
+        String mutatedArg = applyIdentityToArgument(parts.argument, functionType);
+        
+        // Reconstruct: FUNC(mutated_arg) OVER (...)
+        return parts.functionName + "(" + mutatedArg + ") " + parts.overClause;
+    }
+    
+    /**
+     * Parse window function into components.
+     */
+    private static class WindowFunctionParts {
+        String functionName;  // e.g., "SUM", "COUNT"
+        String argument;      // e.g., "c1", "salary", null for COUNT(*)
+        String overClause;    // e.g., "OVER (PARTITION BY dept ORDER BY salary)"
+    }
+    
+    /**
+     * Parse window function string into parts.
+     * 
+     * Examples:
+     *   "SUM(c1) OVER (...)" → {SUM, c1, OVER (...)}
+     *   "COUNT(*) OVER (...)" → {COUNT, null, OVER (...)}
+     *   "ROW_NUMBER() OVER (...)" → {ROW_NUMBER, null, OVER (...)}
+     */
+    private static WindowFunctionParts parseWindowFunction(String windowFunction, String functionType) {
+        WindowFunctionParts parts = new WindowFunctionParts();
+        
+        // Find OVER clause
+        int overIndex = windowFunction.indexOf(" OVER ");
+        if (overIndex == -1) {
+            return null;  // Invalid format
+        }
+        
+        parts.overClause = windowFunction.substring(overIndex + 1);  // "OVER (...)"
+        String core = windowFunction.substring(0, overIndex);  // "SUM(c1)" or "COUNT(*)"
+        
+        // Extract function name and argument
+        int openParen = core.indexOf('(');
+        int closeParen = core.lastIndexOf(')');
+        
+        if (openParen == -1 || closeParen == -1) {
+            return null;  // Invalid format
+        }
+        
+        parts.functionName = core.substring(0, openParen);  // "SUM", "COUNT", etc.
+        String argContent = core.substring(openParen + 1, closeParen).trim();  // "c1", "*", ""
+        
+        // Check if argument is mutable
+        if (argContent.isEmpty() || argContent.equals("*")) {
+            parts.argument = null;  // Cannot mutate COUNT(*), ROW_NUMBER(), etc.
+        } else {
+            parts.argument = argContent;
+        }
+        
+        return parts;
     }
 
     /**
-     * Apply numeric identity mutations (for SUM, AVG, COUNT, ROW_NUMBER, RANK, etc.)
+     * Apply identity mutation to window function argument.
      * 
-     * 12 variants covering:
+     * CRITICAL: Mutates the argument INSIDE the window function, not the result.
+     * 
+     * Examples:
+     *   arg="c1" → "c1 + 0", "c1 * 1", "CAST(c1 AS REAL)", etc.
+     * 
+     * 15 variants covering:
      * - Arithmetic identity (+ 0, * 1, - 0, / 1)
      * - Commutative variants (0 +, 1 *)
      * - Type cast identity
      * - Rounding identity
-     * - NULL-safe identity
+     * - NULL-Safe identity
      * - Parentheses wrapping
      * - Chained identity
      */
-    private static String applyNumericIdentity(String wf, String functionType) {
+    private static String applyIdentityToArgument(String arg, String functionType) {
         // Weighted selection: prioritize high-yield mutations
         int variant = Randomly.fromOptions(
             1, 1, 2, 2, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
@@ -58,128 +123,179 @@ public class SQLite3MRUPIdentityMutator {
         switch (variant) {
             // M1.1: Arithmetic Identity (most common in real bugs)
             case 1:
-                // wf + 0 (HIGHEST PRIORITY - found many MySQL bugs)
-                return "(" + wf + ") + 0";
+                // arg + 0 (HIGHEST PRIORITY - found many MySQL bugs)
+                return arg + " + 0";
             
             case 2:
-                // wf - 0
-                return "(" + wf + ") - 0";
+                // arg - 0
+                return arg + " - 0";
             
             case 3:
-                // wf * 1
-                return "(" + wf + ") * 1";
+                // arg * 1
+                return arg + " * 1";
             
             case 4:
-                // wf / 1 (careful: may cause type coercion)
-                return "(" + wf + ") / 1";
+                // arg / 1 (careful: may cause type coercion)
+                return arg + " / 1";
             
             case 5:
-                // 0 + wf (commutative variant)
-                return "0 + (" + wf + ")";
+                // 0 + arg (commutative variant)
+                return "0 + " + arg;
             
             case 6:
-                // 1 * wf (commutative variant)
-                return "1 * (" + wf + ")";
+                // 1 * arg (commutative variant)
+                return "1 * " + arg;
             
             // M1.2: Type Cast Identity
             case 7:
-                // CAST(wf AS INTEGER) - for integer-returning functions
-                if (isIntegerFunction(functionType)) {
-                    return "CAST((" + wf + ") AS INTEGER)";
-                } else {
-                    // Fallback to arithmetic identity
-                    return "(" + wf + ") + 0";
-                }
+                // CAST(arg AS INTEGER)
+                return "CAST(" + arg + " AS INTEGER)";
             
             case 8:
-                // CAST(wf AS REAL) - may require epsilon comparison
-                return "CAST((" + wf + ") AS REAL)";
+                // CAST(arg AS REAL)
+                return "CAST(" + arg + " AS REAL)";
             
-            // M1.3: Rounding Identity (only for integer functions)
+            // M1.3: Rounding Identity
             case 9:
-                // ROUND(wf, 0) - identity for integers
-                if (isIntegerFunction(functionType)) {
-                    return "ROUND((" + wf + "), 0)";
-                } else {
-                    // For REAL functions, ROUND may change value
-                    // Fallback to safe mutation
-                    return "(" + wf + ")";
-                }
+                // ROUND(arg, 0) - identity for integers
+                return "ROUND(" + arg + ", 0)";
             
             // M1.4: NULL-Safe Identity
             case 10:
-                // COALESCE(wf, wf) - always returns wf
-                return "COALESCE((" + wf + "), (" + wf + "))";
+                // COALESCE(arg, arg) - always returns arg
+                return "COALESCE(" + arg + ", " + arg + ")";
             
             case 11:
-                // IFNULL(wf, wf) - SQLite-specific NULL-safe function
-                return "IFNULL((" + wf + "), (" + wf + "))";
+                // IFNULL(arg, arg) - SQLite-specific NULL-safe function
+                return "IFNULL(" + arg + ", " + arg + ")";
             
             // M1.5: Parentheses Wrapping
             case 12:
-                // (wf) - simple parentheses
-                return "(" + wf + ")";
+                // (arg) - simple parentheses
+                return "(" + arg + ")";
             
             case 13:
-                // ((wf)) - double parentheses
-                return "((" + wf + "))";
+                // ((arg)) - double parentheses
+                return "((" + arg + "))";
             
             // M1.6: Chained Identity
             case 14:
-                // wf + 0 - 0
-                return "(" + wf + ") + 0 - 0";
+                // arg + 0 - 0
+                return arg + " + 0 - 0";
             
             case 15:
-                // wf * 1 * 1
-                return "(" + wf + ") * 1 * 1";
+                // arg * 1 * 1
+                return arg + " * 1 * 1";
             
             default:
-                // Fallback: no mutation
-                return wf;
+                return arg;
         }
     }
 
     /**
-     * Apply generic identity mutations (for non-numeric functions, if any)
+     * Get human-readable description of applied mutation.
      * 
-     * Limited to safe mutations that work for any type.
+     * Now detects mutations in the argument, not the whole expression.
      */
-    private static String applyGenericIdentity(String wf) {
-        int variant = Randomly.fromOptions(1, 2, 3);
-        
-        switch (variant) {
-            case 1:
-                // COALESCE(wf, wf) - safe for any type
-                return "COALESCE((" + wf + "), (" + wf + "))";
-            
-            case 2:
-                // (wf) - simple parentheses
-                return "(" + wf + ")";
-            
-            case 3:
-                // ((wf)) - double parentheses
-                return "((" + wf + "))";
-            
-            default:
-                return wf;
+    public static String getMutationDescription(String original, String mutated) {
+        // If no mutation was applied, return "None"
+        if (original.equals(mutated)) {
+            return "None";
         }
+        
+        // Extract the mutated argument from the window function
+        // Format: FUNC(mutated_arg) OVER (...)
+        
+        int openParen = mutated.indexOf('(');
+        int overIndex = mutated.indexOf(" OVER ");
+        
+        if (openParen == -1 || overIndex == -1 || openParen >= overIndex) {
+            return "Unknown Identity";
+        }
+        
+        // Find the closing paren before OVER
+        int closeParen = mutated.lastIndexOf(')', overIndex);
+        if (closeParen == -1 || closeParen <= openParen) {
+            return "Unknown Identity";
+        }
+        
+        String mutatedArg = mutated.substring(openParen + 1, closeParen).trim();
+        
+        // IMPORTANT: Check more specific patterns FIRST to avoid false matches
+        
+        // M1.6: Chained Identity (check BEFORE simple arithmetic)
+        if (mutatedArg.contains(" + 0 - 0")) {
+            return "Chained Identity (+ 0 - 0)";
+        } else if (mutatedArg.contains(" * 1 * 1")) {
+            return "Chained Identity (* 1 * 1)";
+        }
+        
+        // M1.2: Type Cast Identity
+        else if (mutatedArg.contains("CAST") && mutatedArg.contains("INTEGER")) {
+            return "Type Cast Identity (INTEGER)";
+        } else if (mutatedArg.contains("CAST") && mutatedArg.contains("REAL")) {
+            return "Type Cast Identity (REAL)";
+        }
+        
+        // M1.3: Rounding Identity
+        else if (mutatedArg.contains("ROUND")) {
+            return "Rounding Identity";
+        }
+        
+        // M1.4: NULL-Safe Identity
+        else if (mutatedArg.contains("COALESCE")) {
+            return "NULL-Safe Identity (COALESCE)";
+        } else if (mutatedArg.contains("IFNULL")) {
+            return "NULL-Safe Identity (IFNULL)";
+        }
+        
+        // M1.1: Arithmetic Identity (check AFTER chained to avoid false matches)
+        else if (mutatedArg.contains(" + 0")) {
+            return "Arithmetic Identity (+ 0)";
+        } else if (mutatedArg.contains(" - 0")) {
+            return "Arithmetic Identity (- 0)";
+        } else if (mutatedArg.contains(" * 1")) {
+            return "Arithmetic Identity (* 1)";
+        } else if (mutatedArg.contains(" / 1")) {
+            return "Arithmetic Identity (/ 1)";
+        } else if (mutatedArg.contains("0 + ")) {
+            return "Arithmetic Identity (0 +)";
+        } else if (mutatedArg.contains("1 * ")) {
+            return "Arithmetic Identity (1 *)";
+        }
+        
+        // M1.5: Parentheses Wrapping (check LAST as it's most generic)
+        else if (mutatedArg.startsWith("((") && mutatedArg.endsWith("))")) {
+            return "Parentheses Wrapping (double)";
+        } else if (mutatedArg.startsWith("(") && mutatedArg.endsWith(")")) {
+            // More robust check: ensure it's just parentheses, no operators
+            String inner = mutatedArg.substring(1, mutatedArg.length() - 1);
+            if (!inner.contains(" + ") && !inner.contains(" - ") && 
+                !inner.contains(" * ") && !inner.contains(" / ") &&
+                !inner.contains("CAST") && !inner.contains("ROUND") &&
+                !inner.contains("COALESCE") && !inner.contains("IFNULL")) {
+                return "Parentheses Wrapping (single)";
+            }
+        }
+        
+        // Fallback - should rarely reach here if patterns are comprehensive
+        // Log for debugging if needed
+        return "Unknown Identity (" + mutatedArg + ")";
     }
 
     /**
      * Check if function returns numeric type (INTEGER or REAL).
-     * 
-     * All current MRUP window functions are numeric.
      */
     private static boolean isNumericFunction(String functionType) {
         switch (functionType) {
-            case "SUM":
-            case "AVG":
             case "COUNT":
-            case "MIN":
-            case "MAX":
             case "ROW_NUMBER":
             case "RANK":
             case "DENSE_RANK":
+            case "SUM":
+            case "AVG":
+            case "MIN":
+            case "MAX":
                 return true;
             default:
                 return false;
@@ -187,74 +303,17 @@ public class SQLite3MRUPIdentityMutator {
     }
 
     /**
-     * Check if function returns INTEGER type specifically.
-     * 
-     * Used to determine if ROUND(wf, 0) and CAST(wf AS INTEGER) are safe identities.
+     * Check if function returns integer type specifically.
      */
     private static boolean isIntegerFunction(String functionType) {
         switch (functionType) {
             case "COUNT":
-                return true;
             case "ROW_NUMBER":
-                return true;
             case "RANK":
-                return true;
             case "DENSE_RANK":
                 return true;
-            case "SUM":
-                return true;
-            case "MIN":
-                return true;
-            case "MAX":
-                // These depend on column type, but we'll treat them as potentially integer
-                return true;
-            case "AVG":
-                // AVG always returns REAL in SQLite
-                return false;
             default:
                 return false;
         }
     }
-
-    /**
-     * Get a human-readable description of the mutation type.
-     * Used for logging.
-     */
-    public static String getMutationDescription(String original, String mutated) {
-        if (mutated.contains(" + 0")) {
-            return "Arithmetic Identity (+ 0)";
-        } else if (mutated.contains(" - 0")) {
-            return "Arithmetic Identity (- 0)";
-        } else if (mutated.contains(" * 1")) {
-            return "Arithmetic Identity (* 1)";
-        } else if (mutated.contains(" / 1")) {
-            return "Arithmetic Identity (/ 1)";
-        } else if (mutated.contains("0 + ")) {
-            return "Arithmetic Identity (0 +)";
-        } else if (mutated.contains("1 * ")) {
-            return "Arithmetic Identity (1 *)";
-        } else if (mutated.contains("CAST") && mutated.contains("INTEGER")) {
-            return "Type Cast Identity (INTEGER)";
-        } else if (mutated.contains("CAST") && mutated.contains("REAL")) {
-            return "Type Cast Identity (REAL)";
-        } else if (mutated.contains("ROUND")) {
-            return "Rounding Identity";
-        } else if (mutated.contains("COALESCE")) {
-            return "NULL-Safe Identity (COALESCE)";
-        } else if (mutated.contains("IFNULL")) {
-            return "NULL-Safe Identity (IFNULL)";
-        } else if (mutated.startsWith("((") && mutated.endsWith("))")) {
-            return "Parentheses Wrapping (double)";
-        } else if (mutated.startsWith("(") && mutated.endsWith(")") && 
-                   !mutated.substring(1, mutated.length()-1).contains("(")) {
-            return "Parentheses Wrapping (single)";
-        } else if (mutated.contains("+ 0 - 0")) {
-            return "Chained Identity (+ 0 - 0)";
-        } else if (mutated.contains("* 1 * 1")) {
-            return "Chained Identity (* 1 * 1)";
-        } else {
-            return "Identity Mutation";
-        }
-    }
 }
-
