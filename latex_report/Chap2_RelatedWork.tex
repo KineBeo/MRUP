@@ -1,0 +1,288 @@
+\clearpage
+\phantomsection
+
+\setcounter{chapter}{1}
+\chapter[{CÔNG TRÌNH LIÊN QUAN}]{Công trình liên quan}
+
+Chương này trình bày tổng quan về các kỹ thuật kiểm thử tự động DBMS hiện đại, phân tích điểm mạnh và hạn chế của từng phương pháp, từ đó xác định khoảng trống nghiên cứu về kiểm thử window functions và động lực phát triển MRUP Oracle.
+
+\section{Các kỹ thuật kiểm thử DBMS hiện đại}
+
+\subsection{Pivoted Query Synthesis (PQS)}
+
+PQS \cite{Rigger2020} là phương pháp metamorphic testing được Manuel Rigger và Zhendong Su phát triển, công bố tại OSDI 2020. Ý tưởng cốt lõi của PQS là giải quyết vấn đề oracle cho một hàng đơn lẻ được chọn ngẫu nhiên, gọi là pivot row, bằng cách tổng hợp truy vấn mà tập kết quả bắt buộc phải chứa hàng này. Nếu DBMS không truy xuất được pivot row, một lỗi logic đã được phát hiện.
+
+\subsubsection{Cách tiếp cận}
+
+PQS hoạt động theo quy trình bảy bước: tạo cơ sở dữ liệu ngẫu nhiên, chọn pivot row từ các bảng, tạo biểu thức ngẫu nhiên dưới dạng AST, đánh giá các biểu thức dựa trên pivot row và điều chỉnh chúng để trả về TRUE (quá trình rectification), sử dụng các biểu thức đã chỉnh sửa trong mệnh đề WHERE hoặc JOIN, thực thi truy vấn bằng DBMS, và cuối cùng xác minh pivot row có trong tập kết quả.
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/pqs_overview.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: PQS Overview Diagram]\\\vspace{0.5cm}7-step workflow: Database generation → Pivot row selection → Expression generation → Rectification → Query synthesis → Execution → Verification\vspace{2cm}}}
+    \caption{Tổng quan cách tiếp cận của PQS}
+    \label{fig:pqs_overview}
+\end{figure}
+
+Một ví dụ điển hình là lỗi nghiêm trọng trong SQLite khi sử dụng pivot row \texttt{c0=NULL}. Truy vấn chứa mệnh đề \texttt{WHERE c0 IS NOT 1}, và vì \texttt{NULL IS NOT 1} đánh giá là TRUE, hàng NULL được kỳ vọng trong kết quả. Tuy nhiên, do lỗi tối ưu hóa (SQLite sử dụng partial index dựa trên giả định \texttt{c0 IS NOT 1} ngụ ý \texttt{c0 NOT NULL}), hàng NULL bị bỏ qua, dẫn đến kết quả chỉ có \{0\} thay vì \{0, NULL\}.
+
+\subsubsection{Kết quả và đánh giá}
+
+PQS đã chứng minh hiệu quả cao với 121 lỗi duy nhất được phát hiện, trong đó 96 lỗi đã được sửa hoặc xác minh. Tổng cộng 61 lỗi là lỗi logic. PQS cung cấp exact oracle vì dựa trên đánh giá biểu thức của chính nó thông qua trình thông dịch AST để xác định kết quả kỳ vọng. Nỗ lực triển khai thấp khi so sánh với kích thước DBMS vì chỉ cần xử lý một pivot row thay vì toàn bộ cơ sở dữ liệu.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{Fixed} & \textbf{Verified} & \textbf{Intended} & \textbf{Duplicate} \\ \hline
+SQLite & 64 & 0 & 4 & 2 \\ \hline
+MySQL & 17 & 7 & 2 & 4 \\ \hline
+PostgreSQL & 5 & 3 & 7 & 6 \\ \hline
+\textbf{Tổng} & \textbf{86} & \textbf{10} & \textbf{13} & \textbf{12} \\ \hline
+\end{tabular}
+    \caption{Tình trạng các lỗi được phát hiện bởi PQS}
+    \label{tab:pqs_bugs_status}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{Logic} & \textbf{Error} & \textbf{SEGFAULT} \\ \hline
+SQLite & 46 & 16 & 2 \\ \hline
+MySQL & 14 & 9 & 1 \\ \hline
+PostgreSQL & 1 & 7 & 0 \\ \hline
+\textbf{Tổng} & \textbf{61} & \textbf{32} & \textbf{3} \\ \hline
+\end{tabular}
+    \caption{Phân loại lỗi thực sự được phát hiện bởi PQS (96 lỗi)}
+    \label{tab:pqs_bugs_classification}
+\end{table}
+
+Tuy nhiên, PQS có những hạn chế đáng kể. Nỗ lực triển khai cao do phải triển khai lại thủ công các toán tử và hàm được DBMS hỗ trợ. PQS chỉ xác thực một phần kết quả dựa trên pivot row và không thể phát hiện các hàng trùng lặp bị bỏ sót hoặc được thêm sai. Do đó, PQS không thể xác thực tính đúng đắn của aggregate functions, window functions, kích thước tập kết quả, hoặc thứ tự kết quả. Phương pháp này cũng không phù hợp để kiểm tra mệnh đề OFFSET và LIMIT vì chúng có thể loại trừ pivot row khỏi tập kết quả.
+
+\subsection{Non-Optimizing Reference Engine Construction (NoREC)}
+
+NoREC \cite{Rigger2020NoREC} là kỹ thuật tổng quát và hiệu quả về chi phí để tìm kiếm lỗi tối ưu hóa (optimization bugs) trong DBMS. Lỗi tối ưu hóa là loại lỗi logic khiến trình tối ưu hóa truy vấn tính toán tập kết quả không chính xác.
+
+\subsubsection{Cách tiếp cận}
+
+Ý tưởng cấp cao của NoREC là so sánh kết quả của phiên bản DBMS có tối ưu hóa với phiên bản không thực hiện tối ưu hóa. Vì việc tắt tối ưu hóa khó khăn, ý tưởng cốt lõi là viết lại truy vấn được tối ưu hóa (optimized query) thành truy vấn mà DBMS không thể tối ưu hóa hiệu quả (unoptimized query). Cụ thể, truy vấn dạng \texttt{SELECT * FROM t0 WHERE φ} được biến đổi thành \texttt{SELECT (φ IS TRUE) FROM t0}. Việc di chuyển mệnh đề WHERE đến sau SELECT khiến DBMS phải truy xuất mọi bản ghi, vô hiệu hóa hầu hết các cơ chế tối ưu hóa.
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/norec_overview.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: NoREC Overview Diagram]\\\vspace{0.5cm}Query transformation: Q (optimized) → Q' (unoptimized)\\Compare: |rs(Q)| vs COUNT(TRUE in rs(Q'))\vspace{2cm}}}
+    \caption{Tổng quan cách tiếp cận của NoREC}
+    \label{fig:norec_overview}
+\end{figure}
+
+Ví dụ minh họa dựa trên lỗi trong SQLite: Truy vấn tối ưu hóa \texttt{SELECT * FROM t0 WHERE t0.c0 GLOB '-*';} trả về \{\} (tập rỗng) do tối ưu hóa LIKE sai, trong khi truy vấn không tối ưu hóa \texttt{SELECT t0.c0 GLOB '-*' FROM t0;} đánh giá predicate trên mọi bản ghi và trả về \{TRUE\}. Sự không nhất quán này (0 hàng vs 1 TRUE) phát hiện ra lỗi.
+
+\subsubsection{Kết quả và đánh giá}
+
+NoREC đã tìm thấy 159 lỗi chưa từng được biết đến, trong đó 141 lỗi đã được sửa. Phương pháp này phát hiện hiệu quả các lỗi tối ưu hóa, yêu cầu nỗ lực triển khai thấp và rất tổng quát vì dựa trên quy trình dịch thuật đơn giản. NoREC đã tìm thấy hơn 100 lỗi bổ sung trong SQLite mặc dù SQLite đã được PQS kiểm tra kỹ lưỡng.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{Logic (Optimization)} & \textbf{Error} & \textbf{Crash/Assertion} \\ \hline
+SQLite & 39 & 30 & 41 \\ \hline
+MariaDB & 5 & 0 & 1 \\ \hline
+PostgreSQL & 0 & 4 & 3 \\ \hline
+CockroachDB & 7 & 24 & 4 \\ \hline
+\textbf{Tổng} & \textbf{51} & \textbf{58} & \textbf{74} \\ \hline
+\end{tabular}
+    \caption{Phân loại lỗi được phát hiện bởi NoREC (159 lỗi)}
+    \label{tab:norec_bugs}
+\end{table}
+
+Hạn chế của NoREC là tính tổng quát bị giới hạn, chủ yếu chỉ áp dụng để kiểm tra mệnh đề WHERE. Phương pháp này không áp dụng trực tiếp cho DISTINCT, aggregate functions, hoặc window functions. NoREC không thể phát hiện lỗi nếu tối ưu hóa làm mất đi lỗi/ngoại lệ được mong đợi (do short-circuit evaluation không nhất quán), hoặc nếu DBMS trả về tập kết quả sai nhưng có đúng số lượng bản ghi.
+
+\subsection{Ternary Logic Partitioning (TLP)}
+
+TLP \cite{Rigger2020TLP} là sự cụ thể hóa của ý tưởng Query Partitioning, một kỹ thuật tổng quát để tìm lỗi logic. Ý tưởng cốt lõi là chia truy vấn gốc ($Q$) thành nhiều truy vấn phân vùng ($Q'_0...Q'_{n-1}$), mỗi truy vấn tính toán một phần kết quả. Các phần kết quả được kết hợp bằng toán tử ($RS(Q')$). Nếu kết quả kết hợp khác với kết quả truy vấn gốc ($RS(Q) \ne RS(Q')$), một lỗi logic được phát hiện.
+
+\subsubsection{Cách tiếp cận}
+
+TLP tận dụng logic ba giá trị của SQL (Ternary Logic): một predicate $\phi$ luôn đánh giá thành TRUE, FALSE, hoặc NULL. TLP phân vùng truy vấn thành ba biến thể predicate ternary dựa trên $\phi$ (TRUE), NOT $\phi$ (FALSE), và $\phi$ IS NULL (NULL). Các truy vấn phân vùng này được kết hợp bằng toán tử $\diamond$ (thường là UNION ALL hoặc UNION).
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/tlp_overview.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: TLP Overview Diagram]\\\vspace{0.5cm}Query Q → Partition into Q'\_p, Q'\_¬p, Q'\_p IS NULL\\Combine: RS(Q') = RS(Q'\_p) ∪ RS(Q'\_¬p) ∪ RS(Q'\_p IS NULL)\\Compare: RS(Q) vs RS(Q')\vspace{2cm}}}
+    \caption{Tổng quan cách tiếp cận của TLP}
+    \label{fig:tlp_overview}
+\end{figure}
+
+Ví dụ minh họa dựa trên lỗi MySQL: Truy vấn gốc \texttt{SELECT * FROM t0, t1;} (cross product) trả về \{0, -0\} (đúng). Predicate được chọn là \texttt{t0.c0 = t1.c0}. Truy vấn phân vùng kết hợp ba truy vấn con bằng UNION ALL. MySQL xử lý sai truy vấn con đầu tiên (vì \texttt{0 = -0} đánh giá thành FALSE), dẫn đến kết quả kết hợp là \{\} (tập rỗng). Do $RS(O) \ne RS(P)$, lỗi logic được phát hiện.
+
+\subsubsection{Kết quả và đánh giá}
+
+TLP là phương pháp tổng quát, hiệu quả và đã tìm thấy nhiều lỗi trong các tính năng phức tạp mà PQS và NoREC không xử lý được. TLP có tính tổng quát cao, có thể kiểm tra phạm vi tính năng rộng hơn đáng kể, bao gồm mệnh đề WHERE, GROUP BY, HAVING, aggregate functions và truy vấn DISTINCT. Yêu cầu nỗ lực triển khai thấp.
+
+TLP đã tìm thấy 175 lỗi chưa từng được biết đến, trong đó 125 lỗi đã được sửa. Tổng cộng 77 lỗi là lỗi logic.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|c|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{WHERE} & \textbf{Aggregate} & \textbf{GROUP BY} & \textbf{HAVING} & \textbf{DISTINCT} & \textbf{Error} & \textbf{Crash} \\ \hline
+SQLite & 0 & 3 & 0 & 0 & 1 & 0 & 0 \\ \hline
+CockroachDB & 3 & 3 & 0 & 1 & 0 & 22 & 2 \\ \hline
+TiDB & 29 & 0 & 1 & 0 & 0 & 27 & 4 \\ \hline
+MySQL & 7 & 0 & 0 & 0 & 0 & 0 & 0 \\ \hline
+DuckDB & 21 & 4 & 1 & 2 & 1 & 13 & 19 \\ \hline
+\textbf{Tổng Logic} & \textbf{60} & \textbf{10} & \textbf{2} & \textbf{3} & \textbf{2} & & \\ \hline
+\end{tabular}
+    \caption{Số lượng lỗi logic được phát hiện bởi từng TLP Oracle}
+    \label{tab:tlp_bugs}
+\end{table}
+
+Hạn chế của TLP là không thể thiết lập ground truth. Tương tự NoREC, TLP là phương pháp metamorphic testing, không thể đảm bảo tính đúng đắn tuyệt đối. Nếu truy vấn gốc và truy vấn phân vùng đều tính toán sai nhưng trả về kết quả giống nhau, lỗi sẽ bị bỏ sót. TLP không áp dụng cho transactions, window functions, sequences, và các hàm không xác định (non-deterministic functions). Phương pháp này cũng có hạn chế đối với các truy vấn có kết quả không rõ ràng như subqueries.
+
+\subsection{Equivalent Expression Transformation (EET)}
+
+EET là phương pháp mới và tổng quát để phát hiện lỗi logic trong DBMS, sử dụng thao tác cấp độ biểu thức (expression-level manipulation) thay vì thao tác cấp độ truy vấn (query-level manipulation). Ý tưởng cốt lõi là thao tác các biểu thức của truy vấn theo cách bảo toàn ngữ nghĩa (semantic-preserving), do đó bảo toàn ngữ nghĩa của toàn bộ truy vấn và độc lập với các mẫu truy vấn.
+
+\subsubsection{Cách tiếp cận}
+
+EET xác thực DBMS bằng cách kiểm tra xem các truy vấn đã biến đổi có trả về cùng kết quả với các truy vấn gốc hay không. Các loại biến đổi chính bao gồm Determined Boolean Expressions (áp dụng các luật tương đương logic để biến đổi biểu thức boolean, ví dụ: $p \equiv \text{TRUE AND } p$) và Redundant Branch Structures (sử dụng cấu trúc rẽ nhánh kiểu SQL như biểu thức CASE WHEN để biến đổi các biểu thức non-boolean, đảm bảo kết quả tương đương với biểu thức gốc).
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/eet_overview.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: EET Overview Diagram]\\\vspace{0.5cm}SQL Query → Parse to AST → Expression Transformation\\→ Transformed SQL Query → Compare Results\vspace{2cm}}}
+    \caption{Tổng quan cách tiếp cận của EET}
+    \label{fig:eet_overview}
+\end{figure}
+
+Ví dụ minh họa dựa trên lỗi logic 20 năm tuổi trong PostgreSQL: Truy vấn gốc chứa các biểu thức như \texttt{t2.c2} và \texttt{t2.c3}. EET biến đổi các biểu thức này thành hai biểu thức CASE WHEN tương đương về mặt ngữ nghĩa (Redundant Branch Structures). Mặc dù hai truy vấn về mặt ngữ nghĩa giống nhau, truy vấn gốc trả về \{0\} (1 hàng), trong khi truy vấn đã biến đổi trả về tập rỗng (empty set), cho thấy lỗi logic. Sự khác biệt xảy ra vì các biểu thức biến đổi khiến PostgreSQL sử dụng logic thực thi khác (cơ chế hash-join bị lỗi).
+
+\subsubsection{Kết quả và đánh giá}
+
+EET đã chứng minh tính tổng quát và hiệu quả trong việc tìm kiếm lỗi logic, đặc biệt trong các truy vấn phức tạp. Tính tổng quát vượt trội của EET cho phép áp dụng cho các truy vấn tùy ý (arbitrary queries) mà không giới hạn mẫu truy vấn. EET có khả năng hỗ trợ các tính năng SQL phức tạp như subquery tương quan (correlated subqueries), phép JOIN, window functions, và DML (những tính năng mà các phương pháp khác gặp khó khăn). Về độ tin cậy (Soundness), EET được đảm bảo bảo toàn ngữ nghĩa, không tạo ra false positives trong việc phát hiện lỗi logic.
+
+EET đã tìm thấy 66 lỗi duy nhất trong 5 DBMS được kiểm tra. Tổng cộng 35 lỗi là lỗi logic.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{Reported} & \textbf{Confirmed} & \textbf{Fixed} \\ \hline
+MySQL & 16 & 16 & 2 \\ \hline
+PostgreSQL & 9 & 9 & 8 \\ \hline
+SQLite & 10 & 10 & 10 \\ \hline
+ClickHouse & 21 & 20 & 15 \\ \hline
+TiDB & 10 & 10 & 2 \\ \hline
+\textbf{Tổng} & \textbf{66} & \textbf{65} & \textbf{37} \\ \hline
+\end{tabular}
+    \caption{Tình trạng các lỗi được phát hiện bởi EET}
+    \label{tab:eet_bugs_status}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{DBMS} & \textbf{Logic} & \textbf{Crash} & \textbf{Error} \\ \hline
+MySQL & 10 & 6 & 0 \\ \hline
+PostgreSQL & 3 & 3 & 3 \\ \hline
+SQLite & 9 & 0 & 1 \\ \hline
+ClickHouse & 11 & 3 & 7 \\ \hline
+TiDB & 2 & 7 & 1 \\ \hline
+\textbf{Tổng} & \textbf{35} & \textbf{19} & \textbf{12} \\ \hline
+\end{tabular}
+    \caption{Phân loại lỗi được phát hiện bởi EET (66 lỗi)}
+    \label{tab:eet_bugs_classification}
+\end{table}
+
+Hạn chế của EET là khả năng bỏ sót lỗi nếu cả truy vấn gốc và truy vấn đã biến đổi đều tạo ra cùng kết quả không chính xác. Tốc độ xử lý thấp hơn vì EET hỗ trợ các truy vấn phức tạp, DBMS mất nhiều thời gian hơn để thực thi chúng, dẫn đến throughput thấp hơn so với các phương pháp hiện có.
+
+\section{Khoảng trống nghiên cứu về kiểm thử Window Functions}
+
+\subsection{Phân tích các công trình hiện tại}
+
+Qua khảo sát các công trình nghiên cứu về kiểm thử DBMS, chúng tôi nhận thấy việc kiểm tra các tính năng SQL phức tạp như Window Functions là một thách thức lớn đối với các oracle truyền thống. PQS gặp khó khăn trong việc hỗ trợ các tính năng SQL nâng cao liên quan đến tính toán phức tạp do yêu cầu kết quả của các truy vấn được tạo phải được dự đoán bằng trình thông dịch được triển khai thủ công. PQS không thể tìm thấy lỗi trong các window functions. NoREC không áp dụng trực tiếp cho các truy vấn tính toán kết quả trên nhiều bản ghi, bao gồm cả window functions. TLP không áp dụng cho window functions.
+
+EET đã giải quyết được khoảng trống nghiên cứu này bằng cách hỗ trợ các truy vấn có chứa window functions. Trong số 35 lỗi logic mà EET tìm thấy, có 4 truy vấn kích hoạt lỗi sử dụng window functions (ví dụ: DENSE\_RANK, FIRST\_VALUE). Trước EET, việc thiếu tính tổng quát trong các phương pháp tiếp cận hiện có (chủ yếu dựa trên thao tác cấp độ truy vấn) đã giới hạn khả năng của chúng trong việc kiểm tra các truy vấn phức tạp, bao gồm cả những truy vấn sử dụng window functions.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Oracle} & \textbf{WHERE clause} & \textbf{Window Functions} & \textbf{Frame Specs} \\ \hline
+PQS & \checkmark & $\times$ & $\times$ \\ \hline
+NoREC & \checkmark & $\times$ & $\times$ \\ \hline
+TLP & \checkmark & $\times$ & $\times$ \\ \hline
+EET & \checkmark & $\triangle$ & $\times$ \\ \hline
+\textbf{MRUP (đề xuất)} & $\triangle$ & \checkmark & \checkmark \\ \hline
+\end{tabular}
+    \caption{So sánh khả năng hỗ trợ Window Functions của các oracle (\checkmark = đầy đủ, $\triangle$ = hạn chế, $\times$ = không hỗ trợ)}
+    \label{tab:oracle_comparison}
+\end{table}
+
+\subsection{Các khoảng trống cụ thể}
+
+Phân tích chi tiết cho thấy các khoảng trống nghiên cứu cụ thể về kiểm thử window functions:
+
+\textbf{Thiếu oracle chuyên biệt cho window functions.} PQS, TLP, NoREC chủ yếu tập trung vào WHERE clause, JOIN, GROUP BY. Không có oracle nào khai thác tính chất partition locality của window functions. Không có oracle nào kiểm thử chuyên sâu về frame specifications.
+
+\textbf{Thiếu kiểm thử về ORDER BY phức tạp.} Window functions phụ thuộc nhiều vào ORDER BY (ranking, frame boundaries). Các oracle hiện tại không tập trung vào ordering semantics. Không kiểm thử NULL handling trong ORDER BY (NULLS FIRST/LAST).
+
+\textbf{Thiếu kiểm thử về frame specifications.} Các khía cạnh chưa được kiểm thử đầy đủ bao gồm:
+\begin{itemize}
+    \item ROWS vs RANGE frames
+    \item Frame boundaries (PRECEDING, FOLLOWING, UNBOUNDED)
+    \item Frame exclusions (EXCLUDE CURRENT ROW, EXCLUDE GROUP)
+\end{itemize}
+
+\textbf{Thiếu kiểm thử về tương tác giữa nhiều window functions.} Các oracle hiện tại chủ yếu kiểm thử một window function đơn lẻ. Không kiểm thử tương tác giữa nhiều window functions trong cùng một query. Không kiểm thử window functions trong subqueries, CTEs.
+
+\subsection{Bằng chứng từ phân tích bugs}
+
+Phân tích các bugs đã được phát hiện trong SQLite liên quan đến window functions cho thấy nhiều bugs về frame calculation liên quan đến việc tính toán frame boundaries với NULL values, UNBOUNDED FOLLOWING. Bugs về partition sorting khi ORDER BY có nhiều cột hoặc có NULL values cũng phổ biến. Bugs về type coercion khi aggregate window functions xử lý nhiều kiểu dữ liệu khác nhau, và bugs về optimization khi có WHERE clause hoặc subqueries kết hợp với window functions là những lớp lỗi khó phát hiện.
+
+Tuy nhiên, các bugs này chủ yếu được phát hiện thông qua manual testing bởi developers, bug reports từ users, và fuzzing không có hướng dẫn (random testing). Không có oracle tự động nào chuyên biệt để phát hiện các bugs này một cách có hệ thống.
+
+\subsection{Động lực phát triển MRUP Oracle}
+
+Dựa trên phân tích trên, chúng tôi xác định các lý do cần thiết để phát triển MRUP Oracle:
+
+\textbf{Khai thác tính chất partition locality.} Window functions có tính chất quan trọng: kết quả trong mỗi partition độc lập với các partition khác. Tính chất này chưa được khai thác bởi các oracle hiện tại. MRUP Oracle khai thác tính chất này thông qua quan hệ metamorphic: $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$.
+
+\textbf{Kiểm thử chuyên sâu về frame specifications.} MRUP Oracle tạo ra các query với đa dạng frame specifications, kiểm thử cả ROWS và RANGE frames, và kiểm thử các frame boundaries phức tạp.
+
+\textbf{Kiểm thử ORDER BY và NULL handling.} MRUP Oracle đảm bảo ORDER BY đủ để xác định thứ tự duy nhất (ràng buộc C2), kiểm thử NULLS FIRST/LAST, và kiểm thử multiple ORDER BY columns.
+
+\textbf{Mutation testing dựa trên bugs thực tế.} MRUP Oracle áp dụng CASE WHEN mutations dựa trên bugs đã phát hiện trong MySQL (EET), áp dụng window spec mutations để tăng diversity, và sử dụng 100\% mutation rate để đảm bảo coverage cao.
+
+\textbf{Result comparator tinh vi.} MRUP Oracle sử dụng three-layer comparator với partition-aware sorting, type-aware comparison để xử lý dynamic typing của SQLite, và deterministic sorting với tie-breakers để tránh false positives.
+
+\subsection{Đóng góp của MRUP Oracle}
+
+MRUP Oracle đóng góp vào lĩnh vực kiểm thử DBMS thông qua các khía cạnh sau:
+
+\textbf{Quan hệ metamorphic mới.} Đề xuất quan hệ MRUP: $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$ với điều kiện partitions disjoint. Chứng minh tính đúng đắn của quan hệ dựa trên partition locality. So sánh với PQS: PQS phân vùng query, MRUP phân vùng data.
+
+\textbf{Constraint system đảm bảo soundness.} 6 ràng buộc C0-C5 đảm bảo metamorphic relation luôn đúng, tránh false positives do non-determinism, và tuân thủ các hạn chế của SQLite.
+
+\textbf{Mutation strategies đa dạng.} Window spec mutations (ORDER BY, frame specifications), CASE WHEN mutations (5 strategies dựa trên EET), và 100\% mutation rate để tăng diversity.
+
+\textbf{Partition-aware comparison.} Three-layer comparator: cardinality $\rightarrow$ normalization $\rightarrow$ per-partition comparison. Đóng góp độc đáo so với PQS/TLP (chỉ so sánh set equality hoặc cardinality).
+
+\section{Tổng kết}
+
+Qua khảo sát các công trình liên quan, chúng tôi đã xác định được các oracle hiện tại (PQS, TLP, NoREC, EET) rất hiệu quả nhưng không chuyên biệt cho window functions. Có khoảng trống nghiên cứu rõ ràng về kiểm thử window functions, đặc biệt về partition locality, frame specifications, và ORDER BY semantics. MRUP Oracle lấp đầy khoảng trống này bằng cách khai thác partition locality và có các đóng góp độc đáo: quan hệ metamorphic mới, constraint system đảm bảo soundness, và partition-aware comparison. Chương tiếp theo sẽ trình bày chi tiết về thiết kế và triển khai MRUP Oracle.
+

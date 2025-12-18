@@ -1,0 +1,529 @@
+\clearpage
+\phantomsection
+
+\setcounter{chapter}{2}
+\chapter[{THIẾT KẾ MRUP ORACLE}]{Thiết kế MRUP Oracle}
+
+Chương này trình bày thiết kế và triển khai MRUP Oracle, một test oracle chuyên biệt cho window functions trong SQLite. Chúng tôi bắt đầu với động lực phát triển oracle, sau đó trình bày tổng quan phương pháp, chi tiết hóa thiết kế quan hệ metamorphic và constraint system, cuối cùng mô tả kiến trúc và các thành phần chính.
+
+\section{Động lực và bối cảnh}
+
+\subsection{Hạn chế của các phương pháp hiện tại}
+
+Như đã phân tích trong Chương 2, các oracle hiện đại (PQS, TLP, NoREC) đã đạt được thành công lớn trong việc phát hiện lỗi logic DBMS. Tuy nhiên, chúng chủ yếu tập trung vào WHERE clause optimization, JOIN optimization, và aggregate functions với GROUP BY. Các oracle này không chuyên biệt hóa cho window functions, dẫn đến nhiều hạn chế quan trọng.
+
+PQS gặp khó khăn trong việc hỗ trợ window functions vì yêu cầu kết quả phải được dự đoán bằng trình thông dịch được triển khai thủ công. NoREC không áp dụng trực tiếp cho các truy vấn tính toán kết quả trên nhiều bản ghi. TLP không áp dụng cho window functions vì chúng không thay đổi số lượng hàng. EET đã bước đầu giải quyết vấn đề này bằng cách hỗ trợ window functions thông qua expression-level transformation, nhưng không khai thác được tính chất đặc thù của window functions.
+
+\subsection{Tính chất partition locality}
+
+Window functions có một tính chất quan trọng chưa được khai thác: partition locality. Khi một window function có PARTITION BY clause, kết quả trong mỗi partition hoàn toàn độc lập với các partition khác. DBMS xử lý từng partition riêng biệt, không có sự tác động qua lại giữa các partition. Tính chất này tạo ra cơ hội để xây dựng một quan hệ metamorphic mạnh mẽ dựa trên data partitioning thay vì query partitioning như PQS.
+
+\subsection{Triết lý thiết kế}
+
+MRUP Oracle được thiết kế với ba nguyên tắc cốt lõi. Thứ nhất, chuyên biệt hóa cho window functions bằng cách khai thác partition locality thay vì cố gắng tổng quát hóa cho mọi loại truy vấn. Thứ hai, đảm bảo soundness thông qua constraint system nghiêm ngặt, tránh false positives do non-determinism. Thứ ba, tăng diversity thông qua mutation strategies dựa trên bugs thực tế đã được phát hiện trong MySQL và PostgreSQL.
+
+\section{Tổng quan phương pháp}
+
+\subsection{Quan hệ metamorphic MRUP}
+
+MRUP (MR-UNION-PARTITION) là một quan hệ metamorphic được thiết kế đặc biệt cho window functions. Cho $H$ là một window function query có PARTITION BY clause, và hai bảng $t_1$, $t_2$ có cùng schema. Nếu các partition values trong $t_1$ và $t_2$ là rời rạc (disjoint), tức là PARTITION\_VALUES$(t_1) \cap$ PARTITION\_VALUES$(t_2) = \emptyset$, thì ta có quan hệ metamorphic:
+
+\begin{equation}
+H(t_1 \cup t_2) = H(t_1) \cup H(t_2)
+\end{equation}
+
+Quan hệ này tương tự PQS nhưng hoạt động ở cấp độ data partitioning thay vì query partitioning. PQS phân vùng query theo predicate: $Q(D) = Q(D_1) \cup Q(D_2) \cup Q(D_3)$ với $D_1$, $D_2$, $D_3$ được xác định bởi predicate $p$ (TRUE/FALSE/NULL). MRUP phân vùng data theo PARTITION BY: $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$ với $t_1$, $t_2$ có partition values disjoint.
+
+\subsection{Workflow tổng quan}
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/mrup_workflow.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: MRUP Oracle Workflow Diagram]\\\vspace{0.5cm}Generate (t1, t2) with disjoint partitions → Create t\_union = t1 ∪ t2\\→ Generate window query H with constraints C0-C5\\→ Apply mutations (window spec + CASE WHEN)\\→ Execute H on t1, t2, t\_union → Compare results\vspace{2cm}}}
+    \caption{Workflow tổng quan của MRUP Oracle}
+    \label{fig:mrup_workflow}
+\end{figure}
+
+MRUP Oracle hoạt động theo sáu bước chính. Bước 1 tạo hai bảng $t_1$ và $t_2$ với cùng schema nhưng partition values disjoint. Bước 2 tạo window function query $H$ tuân thủ constraints C0-C5. Bước 3 áp dụng identity mutations (98\% rate) vào argument của window function. Bước 4 áp dụng CASE WHEN mutations (100\% rate) để wrap toàn bộ window function. Bước 5 thực thi $H$ trên ba bảng để thu được $R_1$, $R_2$, và $R_{union}$. Bước 6 so sánh $R_{union}$ với $R_1 \cup R_2$ sử dụng three-layer comparator. Nếu khác nhau, một lỗi logic được phát hiện.
+
+\subsection{Ví dụ minh họa}
+
+Xét hai bảng với partition values disjoint:
+
+\begin{verbatim}
+CREATE TABLE t1 (dept TEXT, salary INTEGER, age INTEGER);
+INSERT INTO t1 VALUES ('Engineering', 80000, 30);
+INSERT INTO t1 VALUES ('Engineering', 90000, 35);
+INSERT INTO t1 VALUES ('Sales', 70000, 28);
+
+CREATE TABLE t2 (dept TEXT, salary INTEGER, age INTEGER);
+INSERT INTO t2 VALUES ('Marketing', 75000, 32);
+INSERT INTO t2 VALUES ('HR', 65000, 27);
+INSERT INTO t2 VALUES ('HR', 68000, 29);
+
+CREATE TABLE t_union AS 
+SELECT * FROM t1 UNION ALL SELECT * FROM t2;
+\end{verbatim}
+
+Window function query:
+
+\begin{verbatim}
+SELECT dept, salary, 
+       RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS wf
+FROM table_name;
+\end{verbatim}
+
+Thực thi trên ba bảng:
+
+\begin{verbatim}
+-- H(t1): 3 rows
+-- {('Engineering', 90000, 1), ('Engineering', 80000, 2), ('Sales', 70000, 1)}
+
+-- H(t2): 3 rows  
+-- {('HR', 68000, 1), ('HR', 65000, 2), ('Marketing', 75000, 1)}
+
+-- H(t_union): 6 rows
+-- Should equal H(t1) UNION ALL H(t2)
+\end{verbatim}
+
+Nếu DBMS trả về kết quả khác (ví dụ: 5 rows thay vì 6 rows), một lỗi logic được phát hiện.
+
+\section{Thiết kế chi tiết}
+
+\subsection{Chứng minh tính đúng đắn}
+
+\textbf{Định lý:} Quan hệ MRUP là sound với điều kiện partitions disjoint.
+
+\textbf{Chứng minh:} Gọi $P_1 = \{p_{11}, p_{12}, ..., p_{1m}\}$ là tập các partition values trong $t_1$, và $P_2 = \{p_{21}, p_{22}, ..., p_{2n}\}$ là tập các partition values trong $t_2$. Theo giả thiết, $P_1 \cap P_2 = \emptyset$ (partitions disjoint).
+
+Khi thực hiện window function query $H$ trên $t_1 \cup t_2$, DBMS sẽ phân vùng dữ liệu theo PARTITION BY clause. Các partition trong $t_1 \cup t_2$ là $P_1 \cup P_2 = \{p_{11}, ..., p_{1m}, p_{21}, ..., p_{2n}\}$. Do $P_1 \cap P_2 = \emptyset$, mỗi partition trong $t_1 \cup t_2$ chỉ chứa dữ liệu từ $t_1$ hoặc $t_2$, không có partition nào chứa dữ liệu từ cả hai. Window function được tính toán độc lập trên mỗi partition theo định nghĩa của PARTITION BY semantics. Do đó, $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$. $\square$
+
+\subsection{Constraint system (C0-C5)}
+
+Để đảm bảo quan hệ MRUP luôn đúng và tránh false positives, MRUP Oracle áp dụng sáu ràng buộc nghiêm ngặt.
+
+\subsubsection{C0: PARTITION BY là bắt buộc}
+
+Quan hệ MRUP dựa trên partition locality. Nếu không có PARTITION BY, toàn bộ bảng là một partition duy nhất, và quan hệ MRUP không còn đúng. Xét ví dụ vi phạm:
+
+\begin{verbatim}
+CREATE TABLE t1 (c0 INTEGER);
+INSERT INTO t1 VALUES (10), (20);
+
+CREATE TABLE t2 (c0 INTEGER);
+INSERT INTO t2 VALUES (30), (40), (50);
+
+SELECT ROW_NUMBER() OVER (ORDER BY c0) AS wf FROM t1;
+-- {1, 2}
+
+SELECT ROW_NUMBER() OVER (ORDER BY c0) AS wf FROM t2;
+-- {1, 2, 3}
+
+SELECT ROW_NUMBER() OVER (ORDER BY c0) AS wf FROM t_union;
+-- {1, 2, 3, 4, 5}  ✗ NOT EQUAL to {1, 2} ∪ {1, 2, 3}
+\end{verbatim}
+
+Không có PARTITION BY, ROW\_NUMBER tính toán trên toàn bộ bảng, vi phạm quan hệ MRUP.
+
+\subsubsection{C1: PARTITION BY chỉ sử dụng cột 'dept'}
+
+Để đảm bảo partition values disjoint giữa $t_1$ và $t_2$, MRUP Oracle sử dụng cột đặc biệt 'dept' với các giá trị được thiết kế sẵn. Khi tạo $t_1$, cột dept nhận giá trị từ \{'Engineering', 'Sales', 'Finance'\}. Khi tạo $t_2$, cột dept nhận giá trị từ \{'Marketing', 'HR', 'Operations'\}. Hai tập giá trị này hoàn toàn rời rạc, đảm bảo PARTITION\_VALUES$(t_1) \cap$ PARTITION\_VALUES$(t_2) = \emptyset$.
+
+\subsubsection{C2: ORDER BY phải deterministic}
+
+Nếu ORDER BY không đủ để xác định thứ tự duy nhất, kết quả có thể khác nhau giữa các lần chạy (non-determinism), gây false positives. MRUP Oracle đảm bảo tính deterministic bằng cách sử dụng multiple ORDER BY columns với tie-breakers và explicit NULLS handling. Ví dụ:
+
+\begin{verbatim}
+-- Deterministic ORDER BY
+ORDER BY salary DESC NULLS LAST, age ASC NULLS FIRST
+\end{verbatim}
+
+Khi có nhiều hàng cùng salary, age được dùng làm tie-breaker. NULLS LAST và NULLS FIRST đảm bảo vị trí của NULL được xác định rõ ràng.
+
+\subsubsection{C3: Không có FRAME cho ranking functions}
+
+SQLite không cho phép frame specification với ROW\_NUMBER, RANK, DENSE\_RANK. Lý do là các hàm này về bản chất đã hoạt động trên toàn bộ partition theo ORDER BY, việc thêm frame không có ý nghĩa. Ví dụ vi phạm:
+
+\begin{verbatim}
+CREATE TABLE t (dept TEXT, salary INTEGER);
+INSERT INTO t VALUES ('IT', 5000), ('IT', 6000);
+
+SELECT ROW_NUMBER() OVER (
+    PARTITION BY dept 
+    ORDER BY salary
+    ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+) FROM t;
+-- Error: frame not allowed with ROW_NUMBER
+\end{verbatim}
+
+MRUP Oracle không tạo frame specification khi sử dụng ranking functions.
+
+\subsubsection{C4: RANGE chỉ với single ORDER BY}
+
+SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột. Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Ví dụ vi phạm:
+
+\begin{verbatim}
+CREATE TABLE t (dept TEXT, salary INTEGER, age INTEGER);
+INSERT INTO t VALUES ('IT', 5000, 30), ('IT', 6000, 35);
+
+SELECT SUM(salary) OVER (
+    PARTITION BY dept
+    ORDER BY salary, age
+    RANGE BETWEEN 1000 PRECEDING AND CURRENT ROW
+) FROM t;
+-- Error: RANGE with multiple ORDER BY not supported
+\end{verbatim}
+
+MRUP Oracle đảm bảo nếu sử dụng RANGE frame thì ORDER BY chỉ có một cột duy nhất.
+
+\subsubsection{C5: Chỉ sử dụng deterministic functions}
+
+Các hàm non-deterministic (RANDOM(), CURRENT\_TIMESTAMP) cho kết quả khác nhau mỗi lần chạy, gây false positives. MRUP Oracle chỉ sử dụng các hàm deterministic: ROW\_NUMBER, RANK, DENSE\_RANK, SUM, AVG, COUNT, MIN, MAX. Các hàm bị cấm bao gồm RANDOM(), CURRENT\_TIMESTAMP, CURRENT\_DATE, CURRENT\_TIME, và các UDF không deterministic.
+
+\subsection{Table pair generation}
+
+MRUP Oracle tạo hai bảng $t_1$ và $t_2$ với schema biến đổi nhưng luôn đảm bảo partition disjointness:
+
+\begin{verbatim}
+CREATE TABLE t1 (
+    dept TEXT,           -- partition key, from {Engineering, Sales, Finance}
+    salary INTEGER|REAL, -- orderable (66% INTEGER, 33% REAL)
+    age INTEGER,         -- orderable (70% chance to include)
+    c0 TYPE,             -- additional column (40% INT, 30% REAL, 30% TEXT)
+    c1 TYPE,             -- additional column (nullable)
+    ...                  -- 1-4 additional columns total
+);
+
+CREATE TABLE t2 (
+    dept TEXT,           -- partition key, from {Marketing, HR, Operations}
+    salary INTEGER|REAL, -- same type as t1
+    age INTEGER,         -- same as t1
+    c0 TYPE,             -- same type as t1
+    c1 TYPE,             -- same type as t1
+    ...                  -- same schema as t1
+);
+\end{verbatim}
+
+Mỗi bảng có 3-8 hàng được tạo ngẫu nhiên. Tổng số cột: 3-7. Cột dept đảm bảo partition disjointness với hai tập giá trị rời rạc. Các cột salary và age được sử dụng cho ORDER BY. Các cột bổ sung (c0, c1, ...) có 30\% chance NULL và 15\% chance edge cases (MIN\_INT, MAX\_INT, 0, -1, 1).
+
+\section{Mutation strategies}
+
+MRUP Oracle áp dụng ba loại mutations theo thứ tự: window spec mutations (optional, ~90\% rate), identity mutations (98\% rate), và CASE WHEN mutations (100\% rate). Mutation pipeline được thiết kế để tối đa hóa diversity trong khi vẫn bảo toàn MRUP semantics.
+
+\subsection{Window spec mutations (Optional)}
+
+MRUP Oracle áp dụng mutations trên window specification để tăng diversity. Các mutations bao gồm ORDER BY mutations (số lượng cột 1-3, direction ASC/DESC, NULL handling NULLS FIRST/LAST) và frame mutations cho aggregate functions (frame type ROWS hoặc RANGE, frame boundaries UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW, N FOLLOWING, UNBOUNDED FOLLOWING).
+
+Ví dụ mutation:
+
+\begin{verbatim}
+-- Original
+SUM(salary) OVER (PARTITION BY dept ORDER BY age)
+
+-- Mutated: Add ROWS frame
+SUM(salary) OVER (
+    PARTITION BY dept 
+    ORDER BY age
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+)
+
+-- Mutated: Add RANGE frame
+SUM(salary) OVER (
+    PARTITION BY dept
+    ORDER BY salary
+    RANGE BETWEEN 1000 PRECEDING AND 1000 FOLLOWING
+)
+\end{verbatim}
+
+\subsection{Identity mutations (Stage 1, 98\% rate)}
+
+Identity mutations được áp dụng vào argument của window function, không phải toàn bộ windowed expression. Đây là điểm quan trọng: mutation phải target optimizer bugs trong expression evaluation bên trong window aggregation.
+
+\textbf{Nguyên tắc:}
+\begin{itemize}
+    \item ✓ VALID: \texttt{SUM(c1 + 0) OVER (...)}
+    \item ✗ INVALID: \texttt{(SUM(c1) OVER (...)) + 0}
+\end{itemize}
+
+Identity mutations bảo toàn giá trị numeric (hoặc trong epsilon tolerance cho REAL) trong khi thay đổi cách optimizer evaluate expression. Các pattern bao gồm:
+
+\begin{verbatim}
+-- Addition identity
+SUM(c1) → SUM(c1 + 0)
+
+-- Multiplication identity
+AVG(salary) → AVG(salary * 1)
+
+-- Unary identity
+COUNT(c0) → COUNT(+c0)
+
+-- COALESCE identity
+MIN(age) → MIN(COALESCE(age, age))
+
+-- CAST identity
+MAX(c1) → MAX(CAST(c1 AS INTEGER))
+\end{verbatim}
+
+Identity mutations được skip cho ranking functions (ROW\_NUMBER, RANK, DENSE\_RANK) vì chúng không có argument để mutate.
+
+\subsection{CASE WHEN mutations (Stage 2, 100\% rate)}
+
+Dựa trên EET và các bugs thực tế trong MySQL, MRUP Oracle áp dụng năm strategies với tỷ lệ phân bố: Constant Conditions (30\%), Window Function in WHEN (25\%), Different Window Functions (20\%), Identical Branches (15\%), NULL Handling (10\%). Mutation rate là 100\% để đảm bảo diversity cao.
+
+\subsubsection{Strategy 1: Constant Conditions}
+
+Wrap window function trong CASE WHEN với constant conditions để kiểm tra optimizer có loại bỏ dead branches đúng không:
+
+\begin{verbatim}
+-- Original
+SELECT dept, salary, 
+       ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary) AS wf
+FROM t;
+
+-- Mutated: WHEN TRUE
+SELECT dept, salary,
+       CASE WHEN TRUE THEN 
+           ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
+       ELSE NULL END AS wf
+FROM t;
+\end{verbatim}
+
+\subsubsection{Strategy 2: Window Function in WHEN}
+
+Sử dụng window function trong WHEN condition để kiểm tra evaluation window function trong conditions:
+
+\begin{verbatim}
+SELECT dept, salary,
+       CASE WHEN ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary) > 1
+            THEN SUM(salary) OVER (PARTITION BY dept)
+       ELSE 0 END AS wf
+FROM t;
+\end{verbatim}
+
+\subsubsection{Strategy 3: Different Window Functions}
+
+Sử dụng các window functions khác nhau trong THEN và ELSE để kiểm tra việc xử lý nhiều window functions trong một expression:
+
+\begin{verbatim}
+SELECT dept, salary,
+       CASE WHEN salary > 70000
+            THEN RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
+       ELSE DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
+       END AS wf
+FROM t;
+\end{verbatim}
+
+\subsubsection{Strategy 4: Identical Branches}
+
+THEN và ELSE có cùng window function để kiểm tra optimizer có nhận diện và tối ưu hóa identical branches không:
+
+\begin{verbatim}
+SELECT dept, salary,
+       CASE WHEN salary > 70000
+            THEN ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
+       ELSE ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
+       END AS wf
+FROM t;
+\end{verbatim}
+
+\subsubsection{Strategy 5: NULL Handling}
+
+Kiểm tra NULL handling trong CASE WHEN:
+
+\begin{verbatim}
+SELECT dept, salary,
+       CASE WHEN salary IS NULL
+            THEN 0
+       ELSE ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
+       END AS wf
+FROM t;
+\end{verbatim}
+
+\section{Result comparator}
+
+Result comparator là thành phần quan trọng nhất của MRUP Oracle, đảm bảo so sánh chính xác giữa $H(t_{union})$ và $H(t_1) \cup H(t_2)$.
+
+\subsection{Three-layer comparison}
+
+% TODO: Insert figure here
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/comparator_architecture.png}
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: Three-Layer Comparator Architecture]\\\vspace{0.5cm}Layer 1: Cardinality Check (|R\_union| = |R\_1| + |R\_2|)\\→ Layer 2: MRUP Normalization (partition-aware sorting)\\→ Layer 3: Per-Partition Comparison (type-aware equality)\vspace{2cm}}}
+    \caption{Kiến trúc three-layer comparator}
+    \label{fig:comparator_architecture}
+\end{figure}
+
+\subsubsection{Layer 1: Cardinality check}
+
+Layer đầu tiên kiểm tra số lượng hàng: $|H(t_{union})| = |H(t_1)| + |H(t_2)|$. Nếu cardinality khác nhau, báo lỗi ngay lập tức mà không cần so sánh chi tiết. Đây là optimization quan trọng vì cardinality mismatch thường chỉ ra lỗi nghiêm trọng.
+
+\subsubsection{Layer 2: MRUP normalization}
+
+Do window functions không đảm bảo thứ tự toàn cục (chỉ đảm bảo thứ tự trong mỗi partition), cần normalize kết quả trước khi so sánh. MRUP normalization thực hiện ba bước: group by partition, sort each partition theo ORDER BY columns với directions và nulls handling, sort partitions globally theo partition value, và concatenate các partitions đã sắp xếp.
+
+Ví dụ normalization:
+
+\begin{verbatim}
+-- Before normalization (arbitrary global order)
+dept         | salary | wf_result
+-------------|--------|----------
+Sales        | 70000  | 1
+Engineering  | 90000  | 1
+Engineering  | 80000  | 2
+Marketing    | 75000  | 1
+
+-- After normalization (sorted by dept, then by ORDER BY)
+dept         | salary | wf_result
+-------------|--------|----------
+Engineering  | 90000  | 1
+Engineering  | 80000  | 2
+Marketing    | 75000  | 1
+Sales        | 70000  | 1
+\end{verbatim}
+
+\subsubsection{Layer 3: Per-partition comparison}
+
+So sánh từng partition với type awareness. SQLite có dynamic typing, một cột có thể chứa các giá trị thuộc nhiều kiểu dữ liệu khác nhau. Type-aware comparison xử lý NULL (NULL == NULL là true, NULL == non-NULL là false), INTEGER comparison (exact equality), REAL comparison (epsilon comparison với threshold $10^{-9}$), TEXT comparison (string equality), và type mismatch (convert to string và compare).
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|l|l|}
+\hline
+\textbf{Type 1} & \textbf{Type 2} & \textbf{Comparison Method} \\ \hline
+NULL & NULL & TRUE \\ \hline
+NULL & Any & FALSE \\ \hline
+INTEGER & INTEGER & Exact equality (v1 == v2) \\ \hline
+REAL & REAL & Epsilon: $|v1 - v2| < 10^{-9}$ \\ \hline
+INTEGER & REAL & Convert to REAL, epsilon \\ \hline
+TEXT & TEXT & String equality \\ \hline
+Other & Other & Convert to string, compare \\ \hline
+\end{tabular}
+    \caption{Type-aware comparison rules}
+    \label{tab:type_aware_comparison}
+\end{table}
+
+\section{Kiến trúc và triển khai}
+
+\subsection{Tích hợp vào SQLancer}
+
+MRUP Oracle được triển khai như một module trong SQLancer framework. Cấu trúc file bao gồm \texttt{SQLite3MRUPOracle.java} (main oracle logic), \texttt{SQLite3MRUPMutationOperator.java} (window spec mutations), \texttt{SQLite3MRUPCaseMutator.java} (CASE WHEN mutations), \texttt{SQLite3MRUPTestCaseLogger.java} (logging và reproduction scripts), và \texttt{SQLite3MRUPTablePairGenerator.java} (table pair generation).
+
+\subsection{Workflow implementation}
+
+Algorithm tổng quát của MRUP Oracle:
+
+\begin{verbatim}
+Input: Database schema
+Output: Bug report (if found)
+
+1. Generate table pair (t1, t2) with disjoint partitions
+   Ensure: PARTITION_VALUES(t1) ∩ PARTITION_VALUES(t2) = ∅
+
+2. Create union table: t_union = t1 ∪ t2
+
+3. Generate window function query H
+   Ensure: H satisfies constraints C0-C5
+
+4. Apply mutations to H → H'
+   - Window spec mutations
+   - CASE WHEN mutations (100% rate)
+
+5. Execute queries:
+   R1 = Execute(H', t1)
+   R2 = Execute(H', t2)
+   R_union = Execute(H', t_union)
+
+6. Compare results using three-layer comparator:
+   R_expected = R1 ∪ R2
+   If Compare(R_union, R_expected) ≠ EQUAL:
+       Report Bug with reproduction script
+\end{verbatim}
+
+\subsection{Ví dụ bug-revealing case}
+
+Giả sử MRUP Oracle phát hiện một lỗi trong SQLite khi sử dụng CASE WHEN với window functions:
+
+\begin{verbatim}
+CREATE TABLE t1 (dept TEXT, salary INTEGER, age INTEGER);
+INSERT INTO t1 VALUES ('Engineering', 80000, 30);
+INSERT INTO t1 VALUES ('Engineering', 90000, 35);
+
+CREATE TABLE t2 (dept TEXT, salary INTEGER, age INTEGER);
+INSERT INTO t2 VALUES ('Marketing', 75000, 32);
+INSERT INTO t2 VALUES ('HR', 65000, 27);
+
+CREATE TABLE t_union AS 
+SELECT * FROM t1 UNION ALL SELECT * FROM t2;
+
+SELECT dept, salary,
+       CASE WHEN TRUE THEN 
+           RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
+       ELSE NULL END AS wf
+FROM t1;
+-- Expected: 2 rows  ✓ {('Engineering', 90000, 1), ('Engineering', 80000, 2)}
+
+SELECT dept, salary,
+       CASE WHEN TRUE THEN 
+           RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
+       ELSE NULL END AS wf
+FROM t2;
+-- Expected: 2 rows  ✓ {('Marketing', 75000, 1), ('HR', 65000, 1)}
+
+SELECT dept, salary,
+       CASE WHEN TRUE THEN 
+           RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
+       ELSE NULL END AS wf
+FROM t_union;
+-- Expected: 4 rows  ✗ Actual: 3 rows (bug detected!)
+\end{verbatim}
+
+MRUP Oracle phát hiện cardinality mismatch (3 rows thay vì 4 rows), báo lỗi và tạo reproduction script.
+
+\section{Tính chất của phương pháp}
+
+\subsection{Soundness}
+
+MRUP Oracle đảm bảo soundness (không tạo ra false positives) thông qua ba cơ chế. Thứ nhất, constraint system (C0-C5) đảm bảo metamorphic relation luôn đúng về mặt toán học. Thứ hai, deterministic query generation loại bỏ non-determinism từ RANDOM(), CURRENT\_TIMESTAMP, và ORDER BY không đủ. Thứ ba, type-aware comparison xử lý chính xác dynamic typing của SQLite, tránh false positives do type mismatch.
+
+\subsection{Completeness}
+
+MRUP Oracle không đảm bảo completeness (có thể bỏ sót lỗi) do ba lý do. Thứ nhất, chỉ kiểm thử window functions có PARTITION BY, không kiểm thử window functions không có PARTITION BY. Thứ hai, schema cố định (5 columns, TEXT và INTEGER) giới hạn không gian kiểm thử. Thứ ba, không kiểm thử WHERE clause, JOINs, GROUP BY, subqueries phức tạp. Tuy nhiên, đây là trade-off có chủ đích để đảm bảo soundness cao.
+
+\subsection{Generality}
+
+MRUP Oracle có tính tổng quát trong phạm vi window functions với PARTITION BY. Phương pháp áp dụng cho tất cả loại window functions (ranking, aggregate, value functions), tất cả frame specifications (ROWS, RANGE), và tất cả ORDER BY patterns (single/multiple columns, ASC/DESC, NULLS handling). So với PQS (chỉ WHERE clause) và TLP (chỉ predicate evaluation), MRUP có tính chuyên biệt cao cho window functions.
+
+\subsection{Extensibility}
+
+MRUP Oracle dễ dàng mở rộng theo ba hướng. Thứ nhất, thêm window function types mới (NTILE, LAG, LEAD, FIRST\_VALUE, LAST\_VALUE). Thứ hai, thêm mutation strategies mới dựa trên bugs mới được phát hiện. Thứ ba, mở rộng schema (thêm REAL, BLOB, computed columns). Kiến trúc modular của oracle cho phép thêm các thành phần mới mà không ảnh hưởng đến core logic.
+
+\section{So sánh với các phương pháp khác}
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Đặc điểm} & \textbf{PQS} & \textbf{TLP} & \textbf{EET} & \textbf{MRUP} \\ \hline
+Phân vùng & Query & Query & N/A & Data \\ \hline
+Window Functions & $\times$ & $\times$ & $\triangle$ & \checkmark \\ \hline
+Frame Specs & $\times$ & $\times$ & $\times$ & \checkmark \\ \hline
+Partition Locality & $\times$ & $\times$ & $\times$ & \checkmark \\ \hline
+Soundness & \checkmark & \checkmark & \checkmark & \checkmark \\ \hline
+Completeness & $\triangle$ & $\triangle$ & $\triangle$ & $\triangle$ \\ \hline
+\end{tabular}
+    \caption{So sánh MRUP với các oracle khác (\checkmark = đầy đủ, $\triangle$ = hạn chế, $\times$ = không hỗ trợ)}
+    \label{tab:mrup_comparison}
+\end{table}
+
+MRUP Oracle có ba đóng góp độc đáo so với các oracle trước đó. Thứ nhất, quan hệ metamorphic mới dựa trên data partitioning thay vì query partitioning, khai thác partition locality của window functions. Thứ hai, three-layer comparator với partition-aware sorting và type-aware comparison, xử lý đúng window function semantics. Thứ ba, mutation strategies dựa trên bugs thực tế (CASE WHEN từ MySQL, window spec mutations), tăng diversity và bug-finding power.
+
+\section{Tổng kết}
+
+Chương này đã trình bày thiết kế và triển khai MRUP Oracle với các điểm chính: động lực phát triển oracle dựa trên hạn chế của các phương pháp hiện tại và tính chất partition locality chưa được khai thác, quan hệ metamorphic MRUP với chứng minh tính đúng đắn, constraint system (C0-C5) đảm bảo soundness và tránh false positives, mutation strategies (window spec và CASE WHEN) dựa trên bugs thực tế, three-layer comparator với partition-aware sorting và type-aware comparison, và kiến trúc modular dễ dàng mở rộng.
+
+MRUP Oracle là một test oracle chuyên biệt cho window functions, lấp đầy khoảng trống nghiên cứu mà PQS, TLP, và NoREC chưa giải quyết được. Chương tiếp theo sẽ trình bày các thí nghiệm đánh giá hiệu quả của MRUP Oracle và roadmap cải tiến trong tương lai.
+

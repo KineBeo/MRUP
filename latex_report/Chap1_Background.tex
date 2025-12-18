@@ -1,0 +1,195 @@
+\clearpage
+\phantomsection
+
+\setcounter{chapter}{0}
+\chapter[{KIẾN THỨC NỀN TẢNG}]{Kiến thức nền tảng}
+
+Chương này giới thiệu các kiến thức nền tảng về window functions trong SQL và SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu.
+
+\section{Window Functions trong SQL}
+
+\subsection{Khái niệm cơ bản}
+
+Window functions là tính năng được giới thiệu trong SQL:2003, cho phép thực hiện phép tính trên tập hợp các hàng liên quan đến hàng hiện tại mà vẫn giữ nguyên số lượng hàng. Khác với GROUP BY làm giảm số hàng, window functions thêm cột tính toán cho mỗi hàng dựa trên "cửa sổ" các hàng liên quan.
+
+Cú pháp tổng quát bao gồm tên hàm và mệnh đề OVER chứa window specification với ba thành phần: PARTITION BY chia dữ liệu thành các phân vùng độc lập, ORDER BY xác định thứ tự các hàng, và frame clause xác định tập hợp hàng được sử dụng.
+
+\begin{table}[H]
+	\centering
+    \small
+    \begin{tabular}{|p{7cm}|p{7cm}|}
+\hline
+\textbf{GROUP BY (Aggregate)} & \textbf{Window Function} \\ \hline
+\texttt{SELECT dept, AVG(salary)} & \texttt{SELECT name, dept, salary,} \\
+\texttt{FROM employees} & \texttt{AVG(salary) OVER (PARTITION BY dept)} \\
+\texttt{GROUP BY dept;} & \texttt{FROM employees;} \\ \hline
+\textbf{Kết quả:} 2 hàng (2 phòng ban) & \textbf{Kết quả:} 5 hàng (giữ nguyên) \\ \hline
+\end{tabular}
+    \caption{So sánh GROUP BY và Window Function}
+    \label{tab:groupby_vs_window}
+\end{table}
+
+\subsection{Các thành phần chính}
+
+\subsubsection{PARTITION BY}
+
+PARTITION BY chia tập kết quả thành các partition độc lập. Window function tính toán riêng cho mỗi partition, không có tác động qua lại giữa các partition. Đây là tính chất partition locality, nền tảng cho quan hệ metamorphic MRUP.
+
+\begin{table}[H]
+	\centering
+    \small
+    \begin{tabular}{|l|l|r|r|}
+\hline
+\textbf{name} & \textbf{dept} & \textbf{salary} & \textbf{avg\_dept} \\ \hline
+Alice & IT & 5000 & 5500 \\
+Bob & IT & 6000 & 5500 \\
+Carol & HR & 4000 & 4500 \\
+Dave & HR & 5000 & 4500 \\ \hline
+\end{tabular}
+    \caption{Ví dụ PARTITION BY dept: mỗi partition (IT, HR) có trung bình riêng}
+    \label{tab:partition_by_example}
+\end{table}
+
+\subsubsection{ORDER BY}
+
+ORDER BY xác định thứ tự các hàng trong partition, ảnh hưởng trực tiếp đến ROW\_NUMBER, RANK và frame specification. SQL chuẩn hỗ trợ NULLS FIRST/LAST để xử lý NULL. Khi có giá trị trùng nhau, cần thêm cột tie-breaker để đảm bảo tính deterministic.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|r|r|r|}
+\hline
+\textbf{name} & \textbf{salary} & \textbf{ROW\_NUMBER} & \textbf{RANK} \\ \hline
+Bob & 6000 & 1 & 1 \\
+Alice & 5000 & 2 & 2 \\
+Dave & 5000 & 3 & 2 \\
+Carol & 4000 & 4 & 4 \\ \hline
+\end{tabular}
+    \caption{Ví dụ ORDER BY salary DESC: ROW\_NUMBER liên tục, RANK có gap}
+    \label{tab:order_by_example}
+\end{table}
+
+\subsubsection{Frame Specification}
+
+Frame specification xác định tập hợp hàng trong partition để tính toán. SQL hỗ trợ ROWS frame (đếm theo hàng vật lý) và RANGE frame (đếm theo giá trị logic). Frame boundaries bao gồm UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW, N FOLLOWING, và UNBOUNDED FOLLOWING.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|r|r|r|}
+\hline
+\textbf{day} & \textbf{sales} & \textbf{3-day MA} & \textbf{cumulative} \\ \hline
+2024-01-01 & 100 & 100 & 100 \\
+2024-01-02 & 150 & 125 & 250 \\
+2024-01-03 & 200 & 150 & 450 \\
+2024-01-04 & 180 & 177 & 630 \\ \hline
+\end{tabular}
+    \caption{ROWS 2 PRECEDING (3-day moving average) vs UNBOUNDED PRECEDING (cumulative)}
+    \label{tab:frame_example}
+\end{table}
+
+\subsection{Phân loại Window Functions}
+
+Window functions được chia thành ba nhóm: ranking functions, aggregate window functions, và value functions.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|l|r|r|r|r|}
+\hline
+\textbf{Nhóm} & \textbf{Hàm} & \textbf{salary} & \textbf{ROW\_NUM} & \textbf{RANK} & \textbf{DENSE\_RANK} \\ \hline
+\multirow{4}{*}{Ranking} & Bob & 6000 & 1 & 1 & 1 \\
+ & Alice & 5000 & 2 & 2 & 2 \\
+ & Dave & 5000 & 3 & 2 & 2 \\
+ & Carol & 4000 & 4 & 4 & 3 \\ \hline
+\end{tabular}
+    \caption{Ranking Functions: ROW\_NUMBER liên tục, RANK có gap, DENSE\_RANK không gap}
+    \label{tab:ranking_functions}
+\end{table}
+
+Ranking functions không cho phép frame specification trong SQLite (ràng buộc C3 của MRUP Oracle). Aggregate functions (SUM, AVG, COUNT, MIN, MAX) có thể dùng frame specification để tính trên frame thay vì toàn bộ partition. Value functions (LAG, LEAD, FIRST\_VALUE, LAST\_VALUE) cho phép truy cập giá trị các hàng khác mà không cần self-join.
+
+\begin{table}[H]
+	\centering
+    \small
+    \begin{tabular}{|l|r|r|r|r|}
+\hline
+\textbf{month} & \textbf{revenue} & \textbf{prev\_month} & \textbf{change} & \textbf{cumulative} \\ \hline
+Jan & 1000 & NULL & NULL & 1000 \\
+Feb & 1200 & 1000 & +200 & 2200 \\
+Mar & 1100 & 1200 & -100 & 3300 \\
+Apr & 1300 & 1100 & +200 & 4600 \\ \hline
+\end{tabular}
+    \caption{Value function LAG() và Aggregate function SUM() với UNBOUNDED PRECEDING}
+    \label{tab:value_aggregate_functions}
+\end{table}
+
+\section{SQLite và Window Functions}
+
+\subsection{Tổng quan về SQLite}
+
+SQLite là DBMS nhúng (embedded), mã nguồn mở, hoạt động serverless với database lưu trong một file. SQLite có kích thước nhỏ gọn (~600KB), không cần cấu hình, chạy đa nền tảng, và có độ tin cậy cao với test coverage >100\%. SQLite được sử dụng trong hàng tỷ thiết bị từ smartphone đến trình duyệt web.
+
+Window functions được giới thiệu trong SQLite 3.25.0 (9/2018). Tuy nhiên, SQLite có một số hạn chế so với SQL chuẩn.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|p{5cm}|p{6cm}|}
+\hline
+\textbf{Hạn chế} & \textbf{Mô tả} & \textbf{Ràng buộc MRUP} \\ \hline
+RANGE + Multiple ORDER BY & Không hỗ trợ RANGE frame với ORDER BY nhiều cột & C4: RANGE frame → ORDER BY 1 cột \\ \hline
+Frame + Ranking & Không cho phép frame với ROW\_NUMBER, RANK, DENSE\_RANK & C3: Ranking functions → không có frame \\ \hline
+Dynamic Typing & Một cột có thể chứa nhiều kiểu dữ liệu & Cần type-aware comparison \\ \hline
+\end{tabular}
+    \caption{Các hạn chế của SQLite với Window Functions}
+    \label{tab:sqlite_limitations}
+\end{table}
+
+SQLite xử lý window functions qua pipeline: parsing (xây dựng AST) → validation (kiểm tra ràng buộc) → planning (tạo query plan) → execution (thực thi trên từng partition) → materialization (trả kết quả). Lỗi logic có thể xảy ra ở mọi bước, đặc biệt frame boundary calculation với NULL, partition sorting, type coercion, và optimization bugs.
+
+\section{Thách thức trong kiểm thử Window Functions}
+
+\subsection{Không gian trạng thái lớn}
+
+Window functions tạo ra không gian trạng thái rất lớn: 15+ loại hàm × 2 loại frame (ROWS, RANGE) × 5 loại boundaries × 4 loại exclusions ≈ 3000+ configurations, chưa kể ORDER BY, PARTITION BY và tương tác với WHERE, JOIN, GROUP BY, subqueries.
+
+\begin{table}[H]
+	\centering
+    \small
+    \begin{tabular}{|l|r|p{7cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Số lượng} & \textbf{Ví dụ} \\ \hline
+Window Functions & 15+ & ROW\_NUMBER, RANK, SUM, AVG, LAG, LEAD... \\ \hline
+Frame Types & 2 & ROWS, RANGE \\ \hline
+Frame Boundaries & 5 & UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW... \\ \hline
+Frame Exclusions & 4 & EXCLUDE CURRENT ROW, EXCLUDE GROUP... \\ \hline
+\textbf{Tổ hợp} & \textbf{3000+} & Chưa kể ORDER BY, PARTITION BY, WHERE, JOIN... \\ \hline
+\end{tabular}
+    \caption{Không gian trạng thái của Window Functions}
+    \label{tab:state_space}
+\end{table}
+
+Tính không xác định (non-determinism) xảy ra khi ORDER BY không đủ xác định thứ tự duy nhất, hoặc khi sử dụng RANDOM(), CURRENT\_TIMESTAMP. NULL handling không rõ ràng (thiếu NULLS FIRST/LAST) cũng gây kết quả không nhất quán.
+
+\subsection{Hạn chế của phương pháp kiểm thử hiện tại}
+
+Các oracle như PQS, TLP, NoREC tập trung vào WHERE, JOIN, GROUP BY nhưng không chuyên biệt cho window functions. Chúng không khai thác partition locality (kết quả mỗi partition độc lập), không kiểm thử đầy đủ frame specifications phức tạp, không chú trọng ordering semantics, và không kiểm thử tương tác giữa nhiều window functions.
+
+\begin{table}[H]
+    \centering
+    \small
+    \begin{tabular}{|l|p{10cm}|}
+\hline
+\textbf{Hạn chế} & \textbf{Mô tả} \\ \hline
+Partition Locality & Không khai thác tính chất kết quả mỗi partition độc lập \\ \hline
+Frame Specification & Không kiểm thử đầy đủ ROWS/RANGE với boundaries, exclusions \\ \hline
+Ordering Semantics & Không chú trọng ORDER BY và NULL handling trong window functions \\ \hline
+Multiple Windows & Không kiểm thử tương tác nhiều window functions trong cùng query \\ \hline
+\end{tabular}
+    \caption{Hạn chế của các phương pháp kiểm thử DBMS hiện tại với Window Functions}
+    \label{tab:testing_limitations}
+\end{table}
+
+Đây là động lực phát triển MRUP Oracle, một test oracle chuyên biệt khai thác partition locality và tập trung vào đặc thù của window functions.
+

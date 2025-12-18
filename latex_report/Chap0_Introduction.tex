@@ -1,0 +1,83 @@
+\clearpage
+\phantomsection
+
+\addcontentsline{toc}{chapter}{{Mở đầu}}
+\chapter*{Mở đầu}
+\noindent{\Large \textbf{Lý do chọn đề tài}}
+
+Hệ quản trị cơ sở dữ liệu (Database Management Systems - DBMS) đóng vai trò nền tảng trong các hệ thống thông tin hiện đại, từ ứng dụng web, di động đến các hệ thống doanh nghiệp quy mô lớn. Độ tin cậy và tính đúng đắn của DBMS là yếu tố then chốt, vì bất kỳ lỗi logic nào trong quá trình xử lý truy vấn đều có thể dẫn đến kết quả sai lệch, gây ảnh hưởng nghiêm trọng đến tính toàn vẹn dữ liệu và quyết định kinh doanh.
+
+Window functions (hàm cửa sổ) là một tính năng quan trọng trong SQL hiện đại, được giới thiệu trong chuẩn SQL:2003 và được hỗ trợ rộng rãi bởi các DBMS phổ biến như PostgreSQL, MySQL, SQLite, và SQL Server. Window functions cho phép thực hiện các phép tính phức tạp trên tập hợp các hàng có liên quan đến hàng hiện tại mà không cần sử dụng GROUP BY, mang lại khả năng biểu đạt mạnh mẽ cho các truy vấn phân tích dữ liệu. Tuy nhiên, do tính phức tạp của window functions với các thành phần như PARTITION BY, ORDER BY, và frame specification (ROWS/RANGE), việc triển khai chúng trong DBMS rất dễ gặp phải các lỗi logic tinh vi.
+
+Kiểm thử tự động DBMS đã được chứng minh là phương pháp hiệu quả để phát hiện lỗi logic thông qua các kỹ thuật như Pivoted Query Synthesis (PQS), Ternary Logic Partitioning (TLP), và Non-Optimizing Reference Engine Construction (NoREC). Tuy nhiên, các nghiên cứu hiện tại chủ yếu tập trung vào kiểm thử các câu lệnh SELECT cơ bản, JOIN, và aggregate functions, trong khi window functions - một tính năng phức tạp và quan trọng - chưa được nghiên cứu chuyên sâu.
+
+Xuất phát từ khoảng trống nghiên cứu này, đề tài \textbf{``Phát triển Oracle kiểm thử lỗi logic Window Functions trong SQLite sử dụng quan hệ Metamorphic MRUP''} được thực hiện nhằm xây dựng một phương pháp kiểm thử tự động chuyên biệt cho window functions, góp phần nâng cao chất lượng và độ tin cậy của DBMS.
+
+\vspace{0.5cm}
+
+\noindent{\Large \textbf{Mục tiêu nghiên cứu}}
+
+Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracle (MR-Union-Partition Oracle) - một test oracle sử dụng quan hệ metamorphic để phát hiện lỗi logic trong việc xử lý window functions của SQLite. Cụ thể:
+
+\renewcommand{\labelitemi}{$-$}
+\begin{itemize}
+	\item Nghiên cứu và phân tích đặc điểm của window functions trong SQL chuẩn và SQLite.
+	\item Thiết kế quan hệ metamorphic MRUP dựa trên tính chất partition locality của window functions.
+	\item Triển khai MRUP Oracle trong framework SQLancer với các thành phần: query generator, mutation operators, và result comparator.
+	\item Đánh giá hiệu quả của MRUP Oracle thông qua các thí nghiệm trên SQLite.
+\end{itemize} 
+
+\vspace{0.3cm}
+
+\noindent{\Large \textbf{Phương pháp nghiên cứu}}
+
+Để đạt được mục tiêu nghiên cứu, đề tài áp dụng các phương pháp sau:
+
+\renewcommand{\labelitemi}{$-$}
+\begin{itemize}
+	\item \textbf{Nghiên cứu lý thuyết:} Tìm hiểu các công trình nghiên cứu về kiểm thử DBMS, đặc biệt là các kỹ thuật metamorphic testing và differential testing. Phân tích đặc tả SQL chuẩn về window functions và cách triển khai trong SQLite.
+	
+	\item \textbf{Thiết kế quan hệ metamorphic:} Xây dựng quan hệ MRUP dựa trên tính chất toán học: $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$, trong đó $H$ là window function query với điều kiện các partition trong $t_1$ và $t_2$ là rời rạc (disjoint).
+	
+	\item \textbf{Triển khai và thử nghiệm:} Phát triển MRUP Oracle trong framework SQLancer bằng Java, tích hợp các kỹ thuật mutation testing và constraint-based query generation. Thực hiện các thí nghiệm trên nhiều phiên bản SQLite để đánh giá hiệu quả.
+	
+	\item \textbf{Phân tích và đánh giá:} Sử dụng các metrics như query diversity, mutation coverage, và execution performance để đánh giá chất lượng của oracle.
+\end{itemize} 
+
+\vspace{0.3cm}
+
+\noindent{\Large \textbf{Đóng góp của đề tài}}
+
+Đề tài mang lại các đóng góp chính sau:
+
+\renewcommand{\labelitemi}{$-$}
+\begin{itemize}
+	\item \textbf{Quan hệ metamorphic MRUP mới:} Đề xuất quan hệ metamorphic chuyên biệt cho window functions, khai thác tính chất partition locality để phát hiện lỗi logic.
+	
+	\item \textbf{MRUP Oracle hoàn chỉnh:} Triển khai một test oracle với các thành phần: (1) Constraint-based query generator tuân thủ 6 ràng buộc C0-C5 đảm bảo tính đúng đắn của metamorphic relation, (2) Mutation operators bao gồm window spec mutations và CASE WHEN mutations dựa trên các lỗi thực tế, (3) Three-layer result comparator với partition-aware sorting và type-aware comparison.
+	
+	\item \textbf{Tích hợp vào SQLancer:} MRUP Oracle được tích hợp vào framework SQLancer, cho phép kiểm thử tự động và liên tục trên SQLite.
+	
+	\item \textbf{Phân tích và đánh giá:} Đánh giá chi tiết về hiệu quả của MRUP Oracle, xác định các điểm mạnh và hạn chế, đề xuất hướng cải tiến trong tương lai.
+\end{itemize} 
+
+\vspace{0.3cm}
+
+\noindent{\Large \textbf{Bố cục của báo cáo}}
+
+Nội dung chính của báo cáo được trình bày như sau:
+
+\renewcommand{\labelitemi}{$-$}
+\begin{itemize}
+	\item \textbf{Mở đầu:} Trình bày lý do chọn đề tài, mục tiêu, phương pháp nghiên cứu, đóng góp và bố cục của báo cáo.
+	
+	\item \textbf{Chương 1 - Kiến thức nền tảng:} Giới thiệu về window functions trong SQL, các thành phần cơ bản (PARTITION BY, ORDER BY, frame specification), và các loại window functions (ranking, aggregate, value functions). Phân tích đặc điểm của SQLite và cách triển khai window functions.
+	
+	\item \textbf{Chương 2 - Công trình liên quan:} Tổng quan về các kỹ thuật kiểm thử DBMS hiện đại (PQS, TLP, NoREC, EET), phân tích điểm mạnh và hạn chế của từng phương pháp. Xác định khoảng trống nghiên cứu về kiểm thử window functions và lý do cần thiết phải phát triển oracle chuyên biệt.
+	
+	\item \textbf{Chương 3 - Thiết kế và triển khai MRUP Oracle:} Trình bày chi tiết về thiết kế quan hệ metamorphic MRUP, kiến trúc của oracle với ba thành phần chính, các ràng buộc C0-C5, mutation strategies, và result comparison algorithm. Mô tả quá trình triển khai trong SQLancer.
+	
+	\item \textbf{Chương 4 - Thí nghiệm và đánh giá:} Thiết kế thí nghiệm với các metrics đánh giá, kết quả thực nghiệm trên SQLite, phân tích hiệu quả và hạn chế của MRUP Oracle. So sánh với các oracle khác trong SQLancer.
+	
+	\item \textbf{Kết luận và hướng phát triển:} Tổng kết các kết quả đạt được, đánh giá mức độ hoàn thành mục tiêu, và đề xuất các hướng nghiên cứu tiếp theo để cải thiện MRUP Oracle.
+\end{itemize} 

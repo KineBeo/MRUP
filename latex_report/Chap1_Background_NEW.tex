@@ -1,0 +1,118 @@
+\clearpage
+\phantomsection
+
+\setcounter{chapter}{0}
+\chapter[{KIẾN THỨC NỀN TẢNG}]{Kiến thức nền tảng}
+
+Chương này giới thiệu các kiến thức nền tảng cần thiết để hiểu về window functions trong SQL và đặc điểm của SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu này.
+
+\section{Window Functions trong SQL}
+
+\subsection{Khái niệm và ứng dụng}
+
+Window functions, hay còn gọi là hàm cửa sổ, là một tính năng mạnh mẽ được giới thiệu trong chuẩn SQL:2003. Khác với aggregate functions thông thường sử dụng GROUP BY làm giảm số lượng hàng trong kết quả, window functions cho phép thực hiện các phép tính trên một tập hợp các hàng có liên quan đến hàng hiện tại mà vẫn giữ nguyên số lượng hàng ban đầu. Mỗi hàng trong kết quả sẽ có thêm các cột tính toán dựa trên "cửa sổ" (window) của các hàng liên quan, tạo ra khả năng biểu đạt mạnh mẽ cho các truy vấn phân tích dữ liệu phức tạp.
+
+Cú pháp tổng quát của window functions bao gồm tên hàm, các tham số (nếu có), và mệnh đề OVER chứa window specification. Trong mệnh đề OVER, có thể chỉ định PARTITION BY để chia dữ liệu thành các phân vùng độc lập, ORDER BY để xác định thứ tự các hàng trong mỗi phân vùng, và frame clause để xác định tập hợp các hàng cụ thể được sử dụng cho phép tính.
+
+Trong thực tế, window functions được ứng dụng rộng rãi trong nhiều lĩnh vực. Trong phân tích doanh thu, chúng được sử dụng để tính tổng doanh thu tích lũy hoặc xếp hạng sản phẩm theo doanh số trong từng danh mục. Đối với phân tích chuỗi thời gian, window functions cho phép tính moving average hoặc so sánh giá trị hiện tại với giá trị trước đó thông qua các hàm LAG và LEAD. Các truy vấn Top-N, như tìm top 3 nhân viên có lương cao nhất trong mỗi phòng ban, cũng trở nên đơn giản hơn nhiều khi sử dụng window functions. Ngoài ra, trong phân tích phân vị, các hàm như NTILE giúp chia dữ liệu thành các nhóm bằng nhau, còn PERCENT\_RANK tính phần trăm xếp hạng của mỗi giá trị.
+
+\subsection{Các thành phần của Window Functions}
+
+\subsubsection{PARTITION BY Clause}
+
+PARTITION BY là mệnh đề quan trọng nhất trong window specification, có nhiệm vụ chia tập kết quả thành các partition (phân vùng) độc lập. Window function sẽ được tính toán riêng biệt cho mỗi partition, không có sự tác động qua lại giữa các partition khác nhau. Đây chính là tính chất partition locality, nền tảng cho quan hệ metamorphic MRUP mà chúng tôi đề xuất trong nghiên cứu này.
+
+Ví dụ, khi tính trung bình lương theo phòng ban, mệnh đề PARTITION BY dept sẽ chia nhân viên thành các nhóm theo phòng ban, và hàm AVG(salary) sẽ tính riêng cho từng phòng ban. Mỗi nhân viên trong kết quả sẽ thấy được mức lương trung bình của chính phòng ban mình, trong khi vẫn giữ nguyên tất cả các hàng dữ liệu ban đầu.
+
+\subsubsection{ORDER BY Clause}
+
+ORDER BY xác định thứ tự các hàng trong mỗi partition, ảnh hưởng trực tiếp đến kết quả của các hàm như ROW\_NUMBER, RANK, và các hàm có frame specification. Thứ tự này phải được xác định rõ ràng để đảm bảo tính deterministic của kết quả.
+
+SQL chuẩn cho phép chỉ định vị trí của NULL trong sắp xếp thông qua NULLS FIRST hoặc NULLS LAST. Điều này đặc biệt quan trọng trong môi trường có nhiều giá trị NULL, giúp đảm bảo kết quả nhất quán giữa các lần thực thi. Trong trường hợp ORDER BY không đủ để xác định thứ tự duy nhất (có các giá trị trùng nhau), cần sử dụng thêm các cột tie-breaker để tránh tính không xác định.
+
+\subsubsection{Frame Specification}
+
+Frame specification xác định tập hợp các hàng trong partition được sử dụng để tính toán window function, cho phép kiểm soát chính xác phạm vi dữ liệu được xử lý. SQL chuẩn hỗ trợ hai loại frame: ROWS frame đếm theo số hàng vật lý, và RANGE frame đếm theo giá trị logic trong ORDER BY.
+
+ROWS frame hoạt động dựa trên vị trí vật lý của các hàng. Ví dụ, ROWS BETWEEN 2 PRECEDING AND CURRENT ROW sẽ bao gồm hai hàng trước và hàng hiện tại, tổng cộng ba hàng liên tiếp. Loại frame này đơn giản và dễ hiểu, phù hợp cho các phép tính như moving average với cửa sổ cố định.
+
+RANGE frame phức tạp hơn, hoạt động dựa trên giá trị trong ORDER BY. Ví dụ, RANGE BETWEEN INTERVAL '7' DAY PRECEDING AND CURRENT ROW sẽ bao gồm tất cả các hàng có giá trị ngày trong khoảng 7 ngày trước ngày hiện tại. Loại frame này hữu ích khi cần xử lý dữ liệu theo giá trị logic thay vì vị trí vật lý.
+
+Frame boundaries có thể được chỉ định bằng nhiều cách khác nhau. UNBOUNDED PRECEDING bắt đầu từ đầu partition, trong khi UNBOUNDED FOLLOWING kéo dài đến cuối partition. N PRECEDING và N FOLLOWING cho phép chỉ định số lượng hàng hoặc giá trị cụ thể trước và sau hàng hiện tại. CURRENT ROW đại diện cho hàng đang được xử lý.
+
+SQL chuẩn còn hỗ trợ frame exclusion, cho phép loại trừ một số hàng khỏi frame. EXCLUDE CURRENT ROW loại trừ hàng hiện tại, EXCLUDE GROUP loại trừ các hàng có cùng giá trị ORDER BY với hàng hiện tại, EXCLUDE TIES loại trừ các hàng trùng với hàng hiện tại nhưng giữ lại chính hàng đó, và EXCLUDE NO OTHERS là mặc định không loại trừ gì. Tuy nhiên, các tính năng này ít được sử dụng trong thực tế và không phải tất cả DBMS đều hỗ trợ đầy đủ.
+
+\subsection{Phân loại Window Functions}
+
+Window functions được chia thành ba nhóm chính dựa trên chức năng của chúng: ranking functions, aggregate window functions, và value functions.
+
+\subsubsection{Ranking Functions}
+
+Các hàm xếp hạng gán một số thứ tự cho mỗi hàng trong partition. ROW\_NUMBER() gán số thứ tự duy nhất cho mỗi hàng theo thứ tự tăng dần liên tục. RANK() gán thứ hạng nhưng có khoảng trống khi có giá trị trùng nhau, ví dụ nếu hai hàng cùng đứng thứ 2 thì hàng tiếp theo sẽ là thứ 4. DENSE\_RANK() cũng gán thứ hạng nhưng không có khoảng trống, hàng tiếp theo sau hai hàng thứ 2 sẽ là thứ 3. NTILE(n) chia partition thành n nhóm bằng nhau, hữu ích cho phân tích phân vị. PERCENT\_RANK() và CUME\_DIST() tính phần trăm xếp hạng và phân phối tích lũy, trả về giá trị từ 0 đến 1.
+
+Một điểm quan trọng cần lưu ý là ranking functions không cho phép sử dụng frame specification trong SQLite. Đây là một trong những ràng buộc mà MRUP Oracle phải tuân thủ, được thể hiện qua ràng buộc C3 trong hệ thống constraints.
+
+\subsubsection{Aggregate Window Functions}
+
+Các hàm aggregate thông thường như SUM, AVG, COUNT, MIN, và MAX đều có thể được sử dụng như window functions bằng cách thêm mệnh đề OVER. Khi đó, chúng tính toán trên frame được chỉ định thay vì toàn bộ partition hoặc toàn bộ bảng như trong GROUP BY thông thường.
+
+SUM(expr) tính tổng các giá trị trong frame, hữu ích cho việc tính tổng tích lũy. AVG(expr) tính trung bình, thường được dùng để tính moving average. COUNT(expr) đếm số hàng trong frame. MIN(expr) và MAX(expr) tìm giá trị nhỏ nhất và lớn nhất trong frame. Đặc điểm quan trọng của aggregate window functions là chúng cho phép sử dụng frame specification để xác định phạm vi tính toán, tạo ra sự linh hoạt cao trong phân tích dữ liệu.
+
+\subsubsection{Value Functions}
+
+Các hàm giá trị cho phép truy cập giá trị của các hàng khác trong partition mà không cần sử dụng self-join phức tạp. LAG(expr, offset) truy cập giá trị của hàng trước offset vị trí, hữu ích để so sánh với giá trị trước đó. LEAD(expr, offset) truy cập giá trị của hàng sau offset vị trí. FIRST\_VALUE(expr) lấy giá trị đầu tiên trong frame, còn LAST\_VALUE(expr) lấy giá trị cuối cùng. NTH\_VALUE(expr, n) lấy giá trị thứ n trong frame, cần chú ý rằng n phải là số nguyên dương.
+
+\section{SQLite và Window Functions}
+
+\subsection{Tổng quan về SQLite}
+
+SQLite là một hệ quản trị cơ sở dữ liệu quan hệ nhúng (embedded), mã nguồn mở, được sử dụng rộng rãi trong các ứng dụng di động, desktop, và embedded systems. Khác với các DBMS truyền thống như PostgreSQL hay MySQL yêu cầu server riêng, SQLite hoạt động theo mô hình serverless với database được lưu trong một file duy nhất. Điều này mang lại nhiều lợi ích: không cần cài đặt hay cấu hình phức tạp (zero-configuration), có thể chạy trên mọi nền tảng từ Windows, Linux, macOS đến iOS và Android, và có kích thước thư viện nhỏ gọn khoảng 600KB phù hợp cho embedded systems.
+
+SQLite nổi tiếng với độ tin cậy cao, được kiểm thử kỹ lưỡng với test coverage vượt quá 100\% (tính cả branch coverage và MC/DC). Đây là lý do SQLite được sử dụng trong hàng tỷ thiết bị trên toàn thế giới, từ điện thoại thông minh đến trình duyệt web và các hệ thống nhúng quan trọng.
+
+\subsection{Window Functions trong SQLite}
+
+Window functions được giới thiệu trong SQLite phiên bản 3.25.0 vào tháng 9 năm 2018, đánh dấu một bước tiến quan trọng trong khả năng phân tích dữ liệu của SQLite. Tuy nhiên, việc triển khai window functions trong SQLite có một số đặc điểm và hạn chế riêng so với SQL chuẩn.
+
+\subsubsection{Các hạn chế của SQLite}
+
+Hạn chế đầu tiên liên quan đến RANGE frame với multiple ORDER BY. SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột. Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Đây là ràng buộc C4 trong MRUP Oracle, yêu cầu nếu sử dụng RANGE frame thì ORDER BY chỉ được có một cột duy nhất.
+
+Hạn chế thứ hai là SQLite không cho phép sử dụng frame specification với các ranking functions như ROW\_NUMBER, RANK, và DENSE\_RANK. Lý do là các hàm này về bản chất đã hoạt động trên toàn bộ partition theo ORDER BY được chỉ định, việc thêm frame specification sẽ không có ý nghĩa và có thể gây nhầm lẫn. Đây chính là ràng buộc C3 mà MRUP Oracle phải tuân thủ.
+
+Ngoài ra, SQLite có hệ thống kiểu dữ liệu động (dynamic typing), khác với các DBMS khác sử dụng static typing. Một cột có thể chứa các giá trị thuộc nhiều kiểu dữ liệu khác nhau trong các hàng khác nhau. Điều này ảnh hưởng đến cách so sánh kết quả trong MRUP Oracle, đòi hỏi phải có type-aware comparison để xử lý chính xác các trường hợp này.
+
+\subsubsection{Kiến trúc xử lý Window Functions trong SQLite}
+
+SQLite xử lý window functions thông qua một pipeline gồm nhiều bước. Đầu tiên là bước parsing, phân tích cú pháp window specification và xây dựng cây cú pháp trừu tượng (AST). Tiếp theo là bước validation, kiểm tra các ràng buộc như frame với ranking functions hay RANGE với multiple ORDER BY. Nếu vi phạm, SQLite sẽ báo lỗi ngay tại bước này.
+
+Sau khi validation thành công, bước planning tạo ra query plan, quyết định cách sắp xếp và phân vùng dữ liệu. Query optimizer của SQLite sẽ cố gắng tối ưu hóa việc thực thi, ví dụ như sử dụng lại kết quả sắp xếp nếu có nhiều window functions với cùng PARTITION BY và ORDER BY. Bước execution thực thi window function trên từng partition theo plan đã được tạo. Cuối cùng là bước materialization, lưu kết quả vào bảng tạm hoặc trả về trực tiếp cho client tùy thuộc vào query plan.
+
+Các lỗi logic có thể xảy ra ở bất kỳ bước nào trong pipeline này. Frame boundary calculation với NULL values là một nguồn lỗi phổ biến, đặc biệt khi NULLS FIRST/LAST không được chỉ định rõ ràng. Partition sorting với multiple ORDER BY columns cũng có thể gặp vấn đề về thứ tự deterministic. Type coercion trong aggregate window functions khi xử lý các kiểu dữ liệu khác nhau có thể dẫn đến kết quả không mong muốn. Optimization bugs khi có WHERE clause hoặc subqueries kết hợp với window functions cũng là một lớp lỗi khó phát hiện.
+
+\section{Thách thức trong kiểm thử Window Functions}
+
+\subsection{Tính phức tạp của Window Functions}
+
+Window functions có độ phức tạp cao hơn nhiều so với các truy vấn SQL thông thường, tạo ra không gian trạng thái rất lớn cần được kiểm thử. Xét về số lượng loại window functions, SQL chuẩn hỗ trợ hơn 15 hàm khác nhau bao gồm ranking, aggregate, và value functions. Mỗi loại hàm lại có các đặc điểm và yêu cầu riêng về frame specification và ORDER BY.
+
+Frame specification tạo thêm một chiều phức tạp với hai loại frame (ROWS và RANGE), năm loại boundaries (UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW, N FOLLOWING, UNBOUNDED FOLLOWING), và bốn loại exclusions. Nếu tính tổ hợp có thể, chỉ riêng frame specification đã có hàng trăm cấu hình khác nhau. Khi kết hợp với 15+ loại window functions, không gian trạng thái vượt quá 3000 configurations, chưa kể đến các biến thể về ORDER BY, PARTITION BY, và tương tác với các mệnh đề khác của SQL.
+
+Tính không xác định (non-determinism) là một thách thức lớn khác trong kiểm thử window functions. Kết quả có thể không xác định khi ORDER BY không đủ để xác định thứ tự duy nhất do có giá trị trùng nhau. Việc sử dụng các hàm không deterministic như RANDOM() hoặc CURRENT\_TIMESTAMP cũng gây ra vấn đề tương tự. NULL handling khi không được chỉ định rõ ràng thông qua NULLS FIRST/LAST có thể dẫn đến kết quả khác nhau giữa các lần thực thi hoặc giữa các DBMS khác nhau.
+
+Window functions còn có thể tương tác với nhiều mệnh đề khác của SQL, tạo ra vô số trường hợp cần kiểm thử. WHERE clause có thể lọc dữ liệu trước khi window function được áp dụng. GROUP BY và HAVING có thể được sử dụng cùng với window functions trong cùng một query. JOINs có thể tạo ra dữ liệu đầu vào phức tạp cho window functions. Subqueries và CTEs (Common Table Expressions) có thể chứa window functions hoặc cung cấp dữ liệu cho window functions. Mỗi tổ hợp này lại tạo ra một không gian kiểm thử riêng với các edge cases đặc thù.
+
+\subsection{Hạn chế của các phương pháp kiểm thử hiện tại}
+
+Các phương pháp kiểm thử DBMS hiện đại như PQS (Pivoted Query Synthesis), TLP (Ternary Logic Partitioning), và NoREC (Non-Optimizing Reference Engine Construction) đã đạt được nhiều thành công trong việc phát hiện lỗi logic. Tuy nhiên, chúng chủ yếu tập trung vào WHERE clause optimization, JOIN optimization, aggregate functions với GROUP BY, và subquery optimization. Các oracle này không chuyên biệt hóa cho window functions, dẫn đến nhiều hạn chế.
+
+Trước hết, các oracle hiện tại không khai thác được tính chất partition locality của window functions. Đây là một tính chất quan trọng: kết quả trong mỗi partition hoàn toàn độc lập với các partition khác. Tính chất này có thể được sử dụng để xây dựng các quan hệ metamorphic mạnh mẽ, nhưng lại chưa được khai thác trong các công trình trước đây.
+
+Thứ hai, các frame specifications phức tạp không được kiểm thử đầy đủ. ROWS và RANGE frames với các boundaries khác nhau, frame exclusions, và tương tác giữa frame và ORDER BY đều là những khu vực chưa được khám phá kỹ lưỡng. Các lỗi liên quan đến frame boundary calculation, đặc biệt với NULL values và UNBOUNDED FOLLOWING, rất khó phát hiện bằng các phương pháp kiểm thử hiện tại.
+
+Thứ ba, các lỗi liên quan đến window function ordering không được chú trọng. ORDER BY trong window functions có vai trò quan trọng hơn nhiều so với ORDER BY thông thường, vì nó ảnh hưởng trực tiếp đến kết quả của ranking functions và frame boundaries. Tuy nhiên, các oracle hiện tại không tập trung vào ordering semantics và NULL handling trong ORDER BY.
+
+Cuối cùng, tương tác giữa nhiều window functions trong cùng một query cũng chưa được kiểm thử đầy đủ. Các oracle hiện tại chủ yếu kiểm thử một window function đơn lẻ, trong khi thực tế các query phân tích thường sử dụng nhiều window functions cùng lúc. Tương tác giữa chúng, đặc biệt về mặt optimization và resource usage, có thể dẫn đến các lỗi tinh vi.
+
+Đây chính là động lực để phát triển MRUP Oracle, một test oracle chuyên biệt cho window functions, khai thác tính chất partition locality và tập trung vào các đặc thù của window functions mà các oracle hiện tại chưa giải quyết được.
+

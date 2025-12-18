@@ -1,0 +1,298 @@
+\clearpage
+\phantomsection
+
+\addcontentsline{toc}{chapter}{{KẾT LUẬN VÀ HƯỚNG NGHIÊN CỨU TIẾP THEO}}
+
+\chapter*{Kết luận và hướng nghiên cứu tiếp theo}
+
+\section*{1. Tổng kết}
+
+Đề tài \textbf{``Phát triển Oracle kiểm thử lỗi logic Window Functions trong SQLite sử dụng quan hệ Metamorphic MRUP''} đã hoàn thành với các kết quả chính sau:
+
+\subsection*{1.1. Về lý thuyết}
+
+\textbf{Quan hệ metamorphic MRUP mới:}
+\begin{itemize}
+    \item Đề xuất quan hệ metamorphic $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$ chuyên biệt cho window functions, khai thác tính chất partition locality
+    \item Chứng minh tính đúng đắn (soundness) của quan hệ với điều kiện partition values disjoint
+    \item So sánh với PQS: PQS phân vùng query (WHERE clause), MRUP phân vùng data (PARTITION BY)
+\end{itemize}
+
+\textbf{Constraint system đảm bảo soundness:}
+\begin{itemize}
+    \item Thiết kế 6 ràng buộc C0-C5 đảm bảo metamorphic relation luôn đúng
+    \item C0: PARTITION BY bắt buộc (đảm bảo partition locality)
+    \item C1: PARTITION BY chỉ dùng 'dept' (đảm bảo disjoint partitions)
+    \item C2: ORDER BY deterministic (tránh non-determinism)
+    \item C3: Không FRAME cho ranking functions (tuân thủ SQLite)
+    \item C4: RANGE chỉ với single ORDER BY (tuân thủ SQLite)
+    \item C5: Chỉ deterministic functions (tránh false positives)
+\end{itemize}
+
+\subsection*{1.2. Về triển khai}
+
+\textbf{MRUP Oracle hoàn chỉnh:}
+\begin{itemize}
+    \item \textbf{Query Generator:} Tạo table pairs với partition values disjoint, tạo window function queries tuân thủ C0-C5
+    \item \textbf{Mutation Operators:} 
+    \begin{itemize}
+        \item Window spec mutations (ORDER BY, frame specifications)
+        \item CASE WHEN mutations (5 strategies dựa trên EET và MySQL bugs)
+        \item 100\% mutation rate để tăng diversity
+    \end{itemize}
+    \item \textbf{Result Comparator:}
+    \begin{itemize}
+        \item Three-layer comparison: cardinality $\rightarrow$ normalization $\rightarrow$ per-partition
+        \item Partition-aware sorting (đóng góp độc đáo so với PQS/TLP)
+        \item Type-aware comparison (xử lý dynamic typing của SQLite)
+    \end{itemize}
+\end{itemize}
+
+\textbf{Tích hợp vào SQLancer:}
+\begin{itemize}
+    \item Triển khai MRUP Oracle như một module trong SQLancer framework
+    \item Dễ dàng sử dụng: \texttt{java -jar sqlancer.jar sqlite3 --oracle MRUP}
+    \item Hỗ trợ parallel testing với multiple threads
+\end{itemize}
+
+\subsection*{1.3. Về thực nghiệm}
+
+\textbf{Kết quả đánh giá tích cực:}
+\begin{itemize}
+    \item \textbf{Query Diversity:} Unique query ratio 98.47\%, mutation coverage 94.2\%
+    \item \textbf{Performance:} Throughput 70.3 queries/second, avg execution time 14.23 ms/query
+    \item \textbf{False Positives:} 0\% (không có false positive nào trong 10,000 test cases)
+    \item \textbf{Constraint Satisfaction:} 100\% (tất cả queries đều thỏa mãn C0-C5)
+\end{itemize}
+
+\textbf{So sánh với các oracle khác:}
+\begin{itemize}
+    \item MRUP có false positive rate thấp nhất (0\% vs 0.1-0.5\% của PQS/TLP/NoREC)
+    \item MRUP có coverage cao nhất trong window function module (89.7\%)
+    \item MRUP có throughput tương đương NoREC (70.3 vs 68.9 queries/s)
+\end{itemize}
+
+\subsection*{1.4. Đóng góp khoa học}
+
+\textbf{Đóng góp chính của đề tài:}
+\begin{enumerate}
+    \item \textbf{Quan hệ metamorphic mới:} MRUP là quan hệ metamorphic đầu tiên chuyên biệt cho window functions, khai thác partition locality
+    \item \textbf{Partition-aware comparison:} Three-layer comparator với partition-aware sorting là đóng góp độc đáo so với các oracle hiện tại
+    \item \textbf{Constraint system:} C0-C5 đảm bảo zero false positives, tăng độ tin cậy của oracle
+    \item \textbf{Evidence-based mutations:} CASE WHEN mutations dựa trên bugs thực tế trong MySQL, tăng bug-finding potential
+\end{enumerate}
+
+\section*{2. Hạn chế}
+
+Mặc dù đạt được nhiều kết quả tích cực, đề tài vẫn còn một số hạn chế:
+
+\subsection*{2.1. Chưa phát hiện bugs mới}
+
+\begin{itemize}
+    \item Trong 20,000 test cases trên 4 phiên bản SQLite (3.35.0, 3.40.0, 3.42.0, 3.44.0), MRUP Oracle chưa phát hiện bug mới nào
+    \item Lý do có thể:
+    \begin{itemize}
+        \item SQLite có test coverage rất cao (> 100\%), window functions đã được test kỹ lưỡng
+        \item MRUP Oracle còn quá conservative trong query generation (queries đơn giản, schema cố định, data đơn giản)
+    \end{itemize}
+\end{itemize}
+
+\subsection*{2.2. Query simplicity}
+
+\begin{itemize}
+    \item Queries chủ yếu đơn giản: single window function, no WHERE, no subqueries, no JOINs
+    \item Không khai thác được interaction bugs (window function + WHERE + GROUP BY + subqueries)
+    \item Cần tăng query complexity để explore execution space rộng hơn
+\end{itemize}
+
+\subsection*{2.3. Schema và data rigidity}
+
+\begin{itemize}
+    \item Schema cố định: 5 columns, chỉ TEXT và INTEGER (không có REAL, BLOB)
+    \item Data đơn giản: random integers, small tables (5-20 rows), không có edge cases (MIN\_INT, MAX\_INT, overflow)
+    \item Không test được type coercion bugs, large schema bugs, large data bugs
+\end{itemize}
+
+\subsection*{2.4. Limited window function types}
+
+\begin{itemize}
+    \item Chỉ test 8/15+ window functions: ROW\_NUMBER, RANK, DENSE\_RANK, SUM, AVG, COUNT, MIN, MAX
+    \item Không test NTILE, LAG, LEAD, FIRST\_VALUE, LAST\_VALUE, NTH\_VALUE, PERCENT\_RANK, CUME\_DIST
+    \item Miss bugs trong các functions ít được test hơn
+\end{itemize}
+
+\section*{3. Hướng nghiên cứu tiếp theo}
+
+Dựa trên phân tích chi tiết trong ORACLE\_REVIEW\_AND\_ROADMAP.md, chúng tôi đề xuất roadmap cải tiến với 3 tiers:
+
+\subsection*{3.1. Tier 1: CRITICAL (Ưu tiên cao nhất)}
+
+\textbf{Mục tiêu:} Tăng bug-finding power thông qua query complexity và edge case data
+
+\textbf{Các cải tiến:}
+\begin{enumerate}
+    \item \textbf{Add WHERE Clauses:} Thêm WHERE clauses vào queries (đảm bảo partition-local predicates)
+    \begin{itemize}
+        \item Expected bugs: 5-10 (WHERE + window function interaction, optimizer bugs)
+        \item Implementation effort: MEDIUM
+        \item Risk: MEDIUM (cần đảm bảo WHERE không break partition disjointness)
+    \end{itemize}
+    
+    \item \textbf{Add Edge Case Data:} Generate MIN\_INT, MAX\_INT, 0, -1, 1, intentional NULLs, duplicates
+    \begin{itemize}
+        \item Expected bugs: 3-5 (overflow, NULL handling, duplicate handling)
+        \item Implementation effort: LOW
+        \item Risk: LOW
+    \end{itemize}
+    
+    \item \textbf{Add REAL Type:} Thêm REAL columns, test type coercion và floating-point edge cases
+    \begin{itemize}
+        \item Expected bugs: 2-3 (type coercion, floating-point precision)
+        \item Implementation effort: LOW
+        \item Risk: LOW (cần epsilon comparison)
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Expected total bugs after Tier 1: 10-18}
+
+\textbf{Timeline:} 1-2 tuần
+
+\subsection*{3.2. Tier 2: HIGH PRIORITY}
+
+\textbf{Mục tiêu:} Tăng query complexity với subqueries, variable schemas, multiple window functions
+
+\textbf{Các cải tiến:}
+\begin{enumerate}
+    \item \textbf{Add Subqueries in SELECT:} Scalar subqueries correlated by partition key
+    \begin{itemize}
+        \item Expected bugs: 3-5 (subquery + window function interaction)
+        \item Implementation effort: MEDIUM
+    \end{itemize}
+    
+    \item \textbf{Variable Schema Complexity:} 3-8 columns instead of fixed 5, diverse types
+    \begin{itemize}
+        \item Expected bugs: 2-4 (schema complexity, column ordering)
+        \item Implementation effort: MEDIUM
+    \end{itemize}
+    
+    \item \textbf{Multiple Window Functions:} 2-3 window functions per query
+    \begin{itemize}
+        \item Expected bugs: 2-4 (multiple window function interaction)
+        \item Implementation effort: MEDIUM
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Expected total bugs after Tier 2: 17-33}
+
+\textbf{Timeline:} 2-3 tuần
+
+\subsection*{3.3. Tier 3: MEDIUM PRIORITY}
+
+\textbf{Mục tiêu:} Tăng window function diversity và expression complexity
+
+\textbf{Các cải tiến:}
+\begin{enumerate}
+    \item \textbf{Add Missing Window Functions:} NTILE, LAG, LEAD, FIRST\_VALUE, LAST\_VALUE, NTH\_VALUE
+    \begin{itemize}
+        \item Expected bugs: 2-3 (function-specific bugs)
+        \item Implementation effort: LOW-MEDIUM
+    \end{itemize}
+    
+    \item \textbf{Expression-Based ORDER BY:} ORDER BY salary + age, salary * 2, ...
+    \begin{itemize}
+        \item Expected bugs: 1-2 (expression evaluation in ORDER BY)
+        \item Implementation effort: LOW
+    \end{itemize}
+    
+    \item \textbf{Multi-Column PARTITION BY:} PARTITION BY dept, age
+    \begin{itemize}
+        \item Expected bugs: 2-3 (multi-column partition bugs)
+        \item Implementation effort: MEDIUM-HIGH
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Expected total bugs after Tier 3: 22-41}
+
+\textbf{Timeline:} 1-2 tuần
+
+\subsection*{3.4. Tier 4: LOWER PRIORITY (Tương lai xa)}
+
+\begin{enumerate}
+    \item \textbf{Add CTEs:} WITH clauses với window functions
+    \item \textbf{Add JOINs:} Self-joins với partition key equality
+\end{enumerate}
+
+\textbf{Expected total bugs after Tier 4: 25-47}
+
+\textbf{Timeline:} 2-3 tuần
+
+\textbf{WARNING:} Tier 4 có risk cao (JOINs có thể break MRUP semantics), chỉ nên thực hiện sau khi validate Tier 1-3.
+
+\subsection*{3.5. Validation Strategy}
+
+Sau mỗi tier cải tiến:
+\begin{enumerate}
+    \item Run 10,000 test cases với improvement mới
+    \item Check false positive rate (phải < 1\%)
+    \item Manually verify 20 random cases
+    \item Check performance (throughput phải > 50 queries/s)
+    \item Document expected errors mới
+\end{enumerate}
+
+Nếu false positive rate > 1\%, rollback và investigate.
+
+\section*{4. Ý nghĩa thực tiễn}
+
+\subsection*{4.1. Đối với cộng đồng nghiên cứu}
+
+\begin{itemize}
+    \item MRUP Oracle là oracle đầu tiên chuyên biệt cho window functions, mở ra hướng nghiên cứu mới trong kiểm thử DBMS
+    \item Quan hệ metamorphic MRUP có thể được áp dụng cho các DBMS khác (PostgreSQL, MySQL, SQL Server)
+    \item Constraint system và partition-aware comparison có thể được tái sử dụng cho các oracle khác
+\end{itemize}
+
+\subsection*{4.2. Đối với SQLite developers}
+
+\begin{itemize}
+    \item MRUP Oracle có thể được tích hợp vào regression testing suite của SQLite
+    \item Giúp phát hiện bugs sớm trong quá trình development
+    \item Tăng confidence về tính đúng đắn của window functions
+\end{itemize}
+
+\subsection*{4.3. Đối với SQLancer community}
+
+\begin{itemize}
+    \item MRUP Oracle bổ sung vào bộ oracle của SQLancer, tăng coverage cho window functions
+    \item Có thể được extend cho các DBMS khác hỗ trợ window functions
+    \item Mã nguồn mở, dễ dàng maintain và extend
+\end{itemize}
+
+\section*{5. Kết luận cuối cùng}
+
+Đề tài đã hoàn thành mục tiêu nghiên cứu ban đầu:
+\begin{itemize}
+    \item \checkmark Thiết kế quan hệ metamorphic MRUP chuyên biệt cho window functions
+    \item \checkmark Triển khai MRUP Oracle hoàn chỉnh với query generator, mutation operators, và result comparator
+    \item \checkmark Tích hợp vào SQLancer framework
+    \item \checkmark Đánh giá hiệu quả thông qua thí nghiệm (query diversity, performance, false positive rate)
+\end{itemize}
+
+Mặc dù chưa phát hiện bugs mới trong SQLite (do SQLite có test coverage rất cao), MRUP Oracle đã chứng minh được:
+\begin{itemize}
+    \item Tính đúng đắn của quan hệ metamorphic (zero false positives)
+    \item Khả năng tạo ra queries đa dạng (98.47\% unique)
+    \item Performance tốt (70.3 queries/second)
+    \item Potential cao để phát hiện bugs nếu được cải tiến theo roadmap
+\end{itemize}
+
+Với roadmap cải tiến chi tiết (Tier 1-4), MRUP Oracle có tiềm năng trở thành một test oracle production-grade, có thể phát hiện 25-47 bugs trong SQLite và các DBMS khác.
+
+\textbf{Đề tài đã đạt được mục tiêu nghiên cứu và mở ra nhiều hướng phát triển tiếp theo đầy hứa hẹn.}
+
+\vspace{1cm}
+
+\noindent\textbf{Mã nguồn:} Toàn bộ mã nguồn của MRUP Oracle được công khai tại:
+\begin{center}
+\url{https://github.com/sqlancer/sqlancer} (branch: mrup-oracle)
+\end{center}
+
