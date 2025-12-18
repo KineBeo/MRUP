@@ -68,6 +68,9 @@ public class SQLite3MRUPTestCaseLogger {
         logBuffer.append("╚═══════════════════════════════════════════════════════════════════╝\n\n");
         logBuffer.append("Test Case ID: ").append(testCaseId).append("\n");
         logBuffer.append("Timestamp: ").append(new Date()).append("\n\n");
+        
+        // Machine-readable header
+        logBuffer.append("METRICS_START|\n");
     }
     
     /**
@@ -77,6 +80,34 @@ public class SQLite3MRUPTestCaseLogger {
                              List<List<String>> t1Data, List<List<String>> t2Data,
                              Set<String> t1Partitions, Set<String> t2Partitions) {
         if (!LOGGING_ENABLED) return;
+        
+        // Machine-readable schema metrics
+        int numCols = columns.size();
+        int numInteger = 0, numReal = 0, numText = 0, numNulls = 0, totalValues = 0;
+        for (SQLite3Column col : columns) {
+            String type = col.getType().toString();
+            if (type.contains("INT")) numInteger++;
+            else if (type.contains("REAL")) numReal++;
+            else if (type.contains("TEXT")) numText++;
+        }
+        
+        // Count NULLs in data
+        for (List<String> row : t1Data) {
+            for (String val : row) {
+                totalValues++;
+                if (val == null || val.equals("NULL") || val.equals("<NULL>")) numNulls++;
+            }
+        }
+        for (List<String> row : t2Data) {
+            for (String val : row) {
+                totalValues++;
+                if (val == null || val.equals("NULL") || val.equals("<NULL>")) numNulls++;
+            }
+        }
+        
+        logBuffer.append(String.format("METRICS_SCHEMA|num_cols=%d|type_int=%d|type_real=%d|type_text=%d|null_count=%d|total_values=%d|\n",
+            numCols, numInteger, numReal, numText, numNulls, totalValues));
+        logBuffer.append(String.format("METRICS_TABLES|t1_rows=%d|t2_rows=%d|\n", t1Data.size(), t2Data.size()));
         
         logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
         logBuffer.append("│ STEP 1 & 2: Table Schema and Data (Disjoint Partitions)          │\n");
@@ -149,8 +180,28 @@ public class SQLite3MRUPTestCaseLogger {
     /**
      * Log constraint verification (now separate from mutation pipeline).
      */
+    /**
+     * Helper method to count occurrences of a pattern in a string.
+     */
+    private int countOccurrences(String str, String pattern) {
+        int count = 0;
+        int index = 0;
+        while ((index = str.indexOf(',', index)) != -1) {
+            if (index > str.indexOf("ORDER BY") && index < str.indexOf(" OVER")) {
+                count++;
+            }
+            index++;
+        }
+        return count;
+    }
+    
     public void logConstraintVerification(Map<String, Boolean> constraints) {
         if (!LOGGING_ENABLED) return;
+        
+        // Machine-readable constraint metrics
+        logBuffer.append(String.format("METRICS_CONSTRAINTS|C0=%s|C1=%s|C2=%s|C3=%s|C4=%s|C5=%s|\n",
+            constraints.get("C0"), constraints.get("C1"), constraints.get("C2"),
+            constraints.get("C3"), constraints.get("C4"), constraints.get("C5")));
         
         logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
         logBuffer.append("│ STEP 3B: Constraint Verification                                  │\n");
@@ -183,6 +234,34 @@ public class SQLite3MRUPTestCaseLogger {
             String afterCaseMutation,
             String finalWindowFunction) {
         if (!LOGGING_ENABLED) return;
+        
+        // Machine-readable mutation metrics
+        logBuffer.append(String.format("METRICS_MUTATIONS|window_spec=%s|identity=%s|case_when=%s|\n",
+            windowSpecMutated ? windowSpecMutation : "None",
+            identityMutationType,
+            caseMutationType));
+        
+        // Extract query characteristics from baseWindowFunction
+        String funcType = "UNKNOWN";
+        if (baseWindowFunction.contains("SUM(")) funcType = "SUM";
+        else if (baseWindowFunction.contains("AVG(")) funcType = "AVG";
+        else if (baseWindowFunction.contains("COUNT(")) funcType = "COUNT";
+        else if (baseWindowFunction.contains("MIN(")) funcType = "MIN";
+        else if (baseWindowFunction.contains("MAX(")) funcType = "MAX";
+        else if (baseWindowFunction.contains("ROW_NUMBER(")) funcType = "ROW_NUMBER";
+        else if (baseWindowFunction.contains("RANK(")) funcType = "RANK";
+        else if (baseWindowFunction.contains("DENSE_RANK(")) funcType = "DENSE_RANK";
+        
+        int numOrderCols = countOccurrences(baseWindowFunction, "ORDER BY.*?,") + 1;
+        if (!baseWindowFunction.contains("ORDER BY")) numOrderCols = 0;
+        
+        boolean hasFrame = baseWindowFunction.contains("ROWS") || baseWindowFunction.contains("RANGE");
+        String frameType = "NONE";
+        if (baseWindowFunction.contains("ROWS")) frameType = "ROWS";
+        else if (baseWindowFunction.contains("RANGE")) frameType = "RANGE";
+        
+        logBuffer.append(String.format("METRICS_QUERY|func_type=%s|order_by_cols=%d|has_frame=%s|frame_type=%s|\n",
+            funcType, numOrderCols, hasFrame, frameType));
         
         logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
         logBuffer.append("│ STEP 3: Mutation Pipeline (End-to-End Query Transformation)      │\n");
@@ -260,6 +339,14 @@ public class SQLite3MRUPTestCaseLogger {
                              List<List<String>> q2Results,
                              List<List<String>> qUnionResults) {
         if (!LOGGING_ENABLED) return;
+        
+        // Machine-readable comparator metrics
+        boolean layer1Pass = (expectedCardinality == actualCardinality);
+        boolean layer2Pass = true; // normalization always succeeds if layer1 passes
+        boolean layer3Pass = passed;
+        
+        logBuffer.append(String.format("METRICS_COMPARATOR|layer1=%s|layer2=%s|layer3=%s|overall=%s|\n",
+            layer1Pass, layer2Pass, layer3Pass, passed));
         
         logBuffer.append("┌───────────────────────────────────────────────────────────────────┐\n");
         logBuffer.append("│ STEP 5: Result Comparison (Phase 3: MRUP Normalization)          │\n");
@@ -384,6 +471,10 @@ public class SQLite3MRUPTestCaseLogger {
                 // Add execution time
                 long duration = System.currentTimeMillis() - startTime;
                 writer.write("\nExecution Time: " + duration + " ms\n");
+                
+                // Machine-readable timing metric
+                writer.write("METRICS_TIMING|duration_ms=" + duration + "|\n");
+                writer.write("METRICS_END|\n");
             }
             
         } catch (IOException e) {

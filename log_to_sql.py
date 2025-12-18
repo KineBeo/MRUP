@@ -67,7 +67,8 @@ def main():
         sys.exit(1)
     
     # Read log file
-    content = log_file.read_text()
+    content = log_file.read_text(encoding="utf-8", errors="replace")
+
     
     # Extract information
     test_id = log_file.stem

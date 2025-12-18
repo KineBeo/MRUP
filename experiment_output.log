@@ -1,0 +1,46 @@
+✅ Found 5124 existing log files. Using them...
+
+📖 Parsing log files...
+Found 5124 log files
+  Processed 1000/5124 files...
+  Processed 2000/5124 files...
+  Processed 3000/5124 files...
+  Processed 4000/5124 files...
+  Processed 5000/5124 files...
+✅ Parsing complete: 5124 files processed
+
+✅ Results saved to: chapter4_metrics.json
+
+======================================================================
+CHAPTER 4 EXPERIMENT RESULTS SUMMARY
+======================================================================
+
+📊 RQ1: Constraint Satisfaction
+  C0: 0.0% (0/5123)
+  C1: 0.0% (0/5123)
+  C2: 0.0% (0/5123)
+  C3: 0.0% (0/5123)
+  C4: 0.0% (0/5123)
+  C5: 0.0% (0/5123)
+
+📊 RQ2: Mutation Application Rates
+  window_spec: 100.0% (5123/5123)
+  identity: 100.0% (5123/5123)
+  case_when: 100.0% (5123/5123)
+
+📊 RQ2: CASE WHEN Distribution
+  Identical Branches: 18.5% (949x)
+  Window Function in WHEN: 27.5% (1410x)
+  Different Window Functions: 17.5% (894x)
+  Constant Condition: 26.9% (1379x)
+  NULL Handling: 9.6% (491x)
+
+📊 RQ3: Comparator Behavior
+  Layer 1: 100.0% pass rate (5123/5123)
+  Layer 2: 100.0% pass rate (5123/5123)
+  Layer 3: 100.0% pass rate (5123/5123)
+
+======================================================================
+
+✅ Experiment complete! Results saved to chapter4_metrics.json
+📝 Next step: Use these metrics to fill [TBD] markers in Chap4_Experiments.tex

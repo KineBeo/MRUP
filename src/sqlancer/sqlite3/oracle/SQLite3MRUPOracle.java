@@ -282,6 +282,15 @@ public class SQLite3MRUPOracle implements TestOracle<SQLite3GlobalState> {
         
         // Log constraint verification separately
         Map<String, Boolean> constraints = verifyConstraints(functionType, windowSpec);
+        
+        // Add this logging to file
+        System.out.println("METRICS_CONSTRAINT|" + 
+            "C0:" + constraints.get("C0") + "|" +
+            "C1:" + constraints.get("C1") + "|" +
+            "C2:" + constraints.get("C2") + "|" +
+            "C3:" + constraints.get("C3") + "|" +
+            "C4:" + constraints.get("C4") + "|" +
+            "C5:" + constraints.get("C5"));
         logger.logConstraintVerification(constraints);
 
         // Step 4: Execute queries

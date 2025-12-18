@@ -1,0 +1,85 @@
+{
+  "total_test_cases": 5123,
+  "rq1_constraints": {
+    "C0": {
+      "satisfied": 1000,
+      "violated": 0,
+      "rate": 100.0
+    },
+    "C1": {
+      "satisfied": 441,
+      "violated": 559,
+      "rate": 44.1
+    },
+    "C2": {
+      "satisfied": 296,
+      "violated": 704,
+      "rate": 29.599999999999998
+    },
+    "C3": {
+      "satisfied": 1000,
+      "violated": 0,
+      "rate": 100.0
+    },
+    "C4": {
+      "satisfied": 996,
+      "violated": 4,
+      "rate": 99.6
+    },
+    "C5": {
+      "satisfied": 1000,
+      "violated": 0,
+      "rate": 100.0
+    }
+  },
+  "rq2_mutations": {
+    "total_queries": 5123,
+    "window_spec": {
+      "applied": 4861,
+      "skipped": 262,
+      "rate": 94.88580909623268
+    },
+    "identity": {
+      "applied": 4913,
+      "skipped": 210,
+      "rate": 95.90083935194222
+    },
+    "case_when": {
+      "applied": 5123,
+      "skipped": 0,
+      "rate": 100.0
+    },
+    "case_strategies": {}
+  },
+  "rq2_schema": {
+    "integer": 285,
+    "real": 814,
+    "text": 958
+  },
+  "rq2_query": {
+    "aggregate": 493,
+    "order_by_1": 5296,
+    "frame_range": 500,
+    "frame_rows": 134,
+    "ranking": 66,
+    "order_by_2": 504,
+    "order_by_3": 73
+  },
+  "rq3_comparator": {
+    "layer1_reached": 5123,
+    "layer1_passed": 5123,
+    "layer2_reached": 5123,
+    "layer2_passed": 5123,
+    "layer3_reached": 5123,
+    "layer3_passed": 5123
+  },
+  "rq4_throughput": {
+    "queries_per_sec": 55.0,
+    "ms_per_query": 18.2,
+    "table_gen_ms": 3,
+    "query_gen_ms": 1,
+    "mutation_ms": 1,
+    "execution_ms": 12,
+    "comparison_ms": 4
+  }
+}

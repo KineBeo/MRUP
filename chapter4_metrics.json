@@ -1,0 +1,107 @@
+{
+  "experiment_info": {
+    "num_test_cases": 10000,
+    "elapsed_time_seconds": 0,
+    "timestamp": "2025-12-17T17:19:24.583900"
+  },
+  "results": {
+    "rq1_constraints": {
+      "C0": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      },
+      "C1": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      },
+      "C2": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      },
+      "C3": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      },
+      "C4": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      },
+      "C5": {
+        "satisfied": 0,
+        "violated": 5123,
+        "rate": 0.0
+      }
+    },
+    "rq2_mutation_rates": {
+      "window_spec": {
+        "applied": 5123,
+        "skipped": 0,
+        "rate": 100.0
+      },
+      "identity": {
+        "applied": 5123,
+        "skipped": 0,
+        "rate": 100.0
+      },
+      "case_when": {
+        "applied": 5123,
+        "skipped": 0,
+        "rate": 100.0
+      }
+    },
+    "rq2_case_distribution": {
+      "Identical Branches": {
+        "count": 949,
+        "rate": 18.5243021666992
+      },
+      "Window Function in WHEN": {
+        "count": 1410,
+        "rate": 27.522935779816514
+      },
+      "Different Window Functions": {
+        "count": 894,
+        "rate": 17.45071247316026
+      },
+      "Constant Condition": {
+        "count": 1379,
+        "rate": 26.917821588912744
+      },
+      "NULL Handling": {
+        "count": 491,
+        "rate": 9.584227991411282
+      }
+    },
+    "rq2_schema_diversity": {
+      "avg_columns": 0,
+      "type_integer_pct": 10.755126182965299,
+      "type_real_pct": 41.68473974763407,
+      "type_text_pct": 47.56013406940063
+    },
+    "rq2_query_diversity": {
+      "aggregate_pct": 87.95665093515119,
+      "ranking_pct": 12.043349064848803,
+      "order_by_1_pct": 78.25554972906833,
+      "order_by_2_pct": 10.330361824855794,
+      "order_by_3_pct": 0.9613703897919944,
+      "has_frame_pct": 89.54728194371613,
+      "frame_rows_pct": 23.841985666841463,
+      "frame_range_pct": 89.54728194371613
+    },
+    "rq3_comparator": {
+      "layer1_reached": 5123,
+      "layer1_passed": 5123,
+      "layer1_rate": 100.0,
+      "layer2_reached": 5123,
+      "layer2_passed": 5123,
+      "layer2_rate": 100.0,
+      "layer3_reached": 5123,
+      "layer3_passed": 5123,
+      "layer3_rate": 100.0
+    }
+  }
+}
