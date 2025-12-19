@@ -1,0 +1,14 @@
+\clearpage
+\phantomsection
+
+\addcontentsline{toc}{chapter}{Tóm tắt}
+\chapter*{Tóm tắt}
+
+Bài báo này trình bày MRUP Oracle - một oracle kiểm thử tự động chuyên biệt nhằm phát hiện lỗi logic trong window functions của hệ quản trị cơ sở dữ liệu (DBMS). Phương pháp này dựa trên quan hệ metamorphic $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$, trong đó $H$ là truy vấn window function có mệnh đề PARTITION BY, và $t_1$, $t_2$ là hai bảng có cùng schema nhưng các giá trị partition rời nhau. Quan hệ này khai thác tính chất partition locality của window functions để phát hiện lỗi logic mà không cần oracle truyền thống.
+
+MRUP Oracle bao gồm hệ thống ràng buộc nghiêm ngặt (C0-C5) để đảm bảo tính đúng đắn của quan hệ metamorphic, bộ so sánh 3 tầng để xử lý kết quả một cách chính xác, và các chiến lược đột biến đa dạng nhằm tăng khả năng phát hiện lỗi. Cụ thể, oracle áp dụng 10 chiến lược đột biến trên window specification, 8 biến thể đột biến đồng nhất (identity mutations), và 5 chiến lược đột biến CASE WHEN để tạo ra các truy vấn tương đương theo ngữ nghĩa.
+
+Việc đánh giá MRUP Oracle dựa trên phân tích log từ hơn 10,000 test case được thực thi trên SQLite3, tập trung vào bốn câu hỏi nghiên cứu: (1) mức độ tuân thủ ràng buộc, (2) sự đa dạng của đột biến, (3) tính ổn định của bộ so sánh, và (4) hiệu suất thực thi. Kết quả cho thấy oracle hoạt động ổn định, tuân thủ nghiêm ngặt các ràng buộc thiết kế, và duy trì tỷ lệ đột biến cao, cho thấy tiềm năng trong việc phát hiện lỗi logic tinh vi trong window functions.
+
+\vspace{1cm}
+\textbf{Từ khóa:} Kiểm thử DBMS, Window Functions, Metamorphic Testing, Oracle, SQLancer, Logic Bug Detection

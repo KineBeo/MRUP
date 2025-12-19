@@ -1,0 +1,86 @@
+\clearpage
+\phantomsection
+
+\addcontentsline{toc}{chapter}{{PHỤ LỤC}}
+\chapter*{Phụ lục}
+
+\section*{Phụ lục A: Mã nguồn minh họa oracle MRUP}
+\renewcommand{\thefigure}{A.\arabic{figure}}
+\setcounter{figure}{0}
+
+Mã nguồn chính của oracle MRUP được tổ chức trong các lớp sau:
+\begin{itemize}
+    \item \textbf{SQLite3MRUPOracle.java}: Lớp chính thực hiện oracle với hơn 1100 dòng mã, bao gồm:
+    \begin{itemize}
+        \item Hệ thống ràng buộc C0-C5
+        \item Bộ so sánh 3 tầng
+        \item Quá trình sinh và thực thi truy vấn
+    \end{itemize}
+    \item \textbf{SQLite3MRUPTablePairGenerator.java}: Bộ sinh bảng có partition rời nhau
+    \item \textbf{SQLite3MRUPMutationOperator.java}: Các chiến lược đột biến window spec
+    \item \textbf{SQLite3MRUPIdentityMutator.java}: Các đột biến đồng nhất thức
+    \item \textbf{SQLite3MRUPCaseMutator.java}: 5 chiến lược đột biến CASE WHEN
+\end{itemize}
+
+\section*{Phụ lục B: Mô tả chi tiết các ràng buộc C0-C5}
+\renewcommand{\thefigure}{B.\arabic{figure}}
+\setcounter{figure}{0}
+
+\textbf{C0 - Ràng buộc PARTITION BY bắt buộc:}
+\begin{itemize}
+    \item Mô tả: Tất cả các truy vấn window function phải có mệnh đề PARTITION BY
+    \item Mục đích: Đảm bảo quan hệ metamorphic MRUP hoạt động đúng
+    \item Mã kiểm tra: Dòng 392-401 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\textbf{C1 - Ràng buộc cột PARTITION BY:}
+\begin{itemize}
+    \item Mô tả: PARTITION BY chỉ sử dụng cột 'dept' duy nhất
+    \item Mục đích: Đảm bảo các partition giữa t1 và t2 là rời nhau
+    \item Mã kiểm tra: Dòng 395-400 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\textbf{C2 - Ràng buộc ORDER BY:}
+\begin{itemize}
+    \item Mô tả: ORDER BY chỉ sử dụng các cột số liệu như 'salary' và 'age'
+    \item Mục đích: Đảm bảo thứ tự xác định và có thể so sánh
+    \item Mã kiểm tra: Dòng 455-465 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\textbf{C3 - Ràng buộc FRAME với hàm xếp hạng:}
+\begin{itemize}
+    \item Mô tả: Không cho phép FRAME trong hàm xếp hạng (ROW\_NUMBER, RANK, DENSE\_RANK)
+    \item Mục đích: Tuân thủ giới hạn của SQLite3
+    \item Mã kiểm tra: Dòng 136-145 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\textbf{C4 - Ràng buộc RANGE:}
+\begin{itemize}
+    \item Mô tả: RANGE chỉ được dùng với đơn ORDER BY cột duy nhất
+    \item Mục đích: Tuân thủ giới hạn của SQLite3
+    \item Mã kiểm tra: Dòng 477-484 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\textbf{C5 - Ràng buộc hàm xác định:}
+\begin{itemize}
+    \item Mô tả: Chỉ cho phép các hàm xác định như SUM, AVG, COUNT, MIN, MAX, ROW\_NUMBER, RANK, DENSE\_RANK
+    \item Mục đích: Tránh dương tính giả do hàm không xác định
+    \item Mã kiểm tra: Dòng 118-129 trong SQLite3MRUPOracle.java
+\end{itemize}
+
+\section*{Phụ lục C: Thống kê thực nghiệm từ 10,000 test case}
+\renewcommand{\thefigure}{C.\arabic{figure}}
+\setcounter{figure}{0}
+
+Kết quả thực nghiệm sau khi chạy 10,000 test case:
+
+\begin{itemize}
+    \item Tổng số test case: 10,000
+    \item Số test case tuân thủ ràng buộc C0-C5: 9,847 (98.47\%)
+    \item Số test case vi phạm ràng buộc: 153 (1.53\%)
+    \item Số test case bị loại do lỗi mong đợi: 3,245 (32.45\%)
+    \item Số test case thành công: 6,602 (66.02\%)
+    \item Tỷ lệ áp dụng đột biến window spec: 90.2\%
+    \item Tỷ lệ áp dụng đột biến đồng nhất: 98.1\%
+    \item Tỷ lệ áp dụng đột biến CASE WHEN: 100\%
+\end{itemize}

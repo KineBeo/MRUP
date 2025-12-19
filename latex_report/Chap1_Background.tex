@@ -2,38 +2,88 @@
 \phantomsection
 
 \setcounter{chapter}{0}
-\chapter[{KIẾN THỨC NỀN TẢNG}]{Kiến thức nền tảng}
+\chapter{Kiến thức nền tảng}
 
-Chương này giới thiệu các kiến thức nền tảng về window functions trong SQL và SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu.
+\noindent Chương này giới thiệu các kiến thức nền tảng về window functions trong SQL và SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu.
 
 \section{Window Functions trong SQL}
 
 \subsection{Khái niệm cơ bản}
 
-Window functions là tính năng được giới thiệu trong SQL:2003, cho phép thực hiện phép tính trên tập hợp các hàng liên quan đến hàng hiện tại mà vẫn giữ nguyên số lượng hàng. Khác với GROUP BY làm giảm số hàng, window functions thêm cột tính toán cho mỗi hàng dựa trên "cửa sổ" các hàng liên quan.
+\noindent Window functions là tính năng được giới thiệu trong SQL:2003, cho phép thực hiện phép tính trên tập hợp các hàng liên quan đến hàng hiện tại mà vẫn giữ nguyên số lượng hàng. Khác với GROUP BY làm giảm số hàng, window functions thêm cột tính toán cho mỗi hàng dựa trên "cửa sổ" các hàng liên quan.
 
-Cú pháp tổng quát bao gồm tên hàm và mệnh đề OVER chứa window specification với ba thành phần: PARTITION BY chia dữ liệu thành các phân vùng độc lập, ORDER BY xác định thứ tự các hàng, và frame clause xác định tập hợp hàng được sử dụng.
+{Cú pháp chung của Window Function:}
+\vspace{-0.6em}
+\begin{SQLSyntax}
+function_name(expression) OVER (
+  [PARTITION BY column_list]
+  [ORDER BY column_list]
+  [frame_clause]
+)
+\end{SQLSyntax}
+\vspace{-0.6em}
+Cú pháp tổng quát bao gồm tên hàm và mệnh đề OVER chứa window specification với ba thành phần: PARTITION BY chia dữ liệu thành các phân vùng độc lập, ORDER BY xác định thứ tự các hàng, và frame clause xác định tập hợp hàng được sử dụng. Với bảng dữ liệu employees như sau, ta có thể so sánh kết quả của truy vấn GROUP BY và window function:
 
 \begin{table}[H]
 	\centering
     \small
-    \begin{tabular}{|p{7cm}|p{7cm}|}
+    \begin{tabular}{|l|l|r|}
+\hline
+\textbf{name} & \textbf{dept} & \textbf{salary} \\ \hline
+Alice & IT & 5000 \\ \hline
+Bob & IT & 6000 \\ \hline
+Carol & HR & 4000 \\ \hline
+Dave & HR & 5000 \\ \hline
+Emma & IT & 7000 \\ \hline
+\end{tabular}
+    \caption{Bảng dữ liệu employees sử dụng cho ví dụ}
+    \label{tab:employees_example}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{6.5cm}|p{7.5cm}|}
 \hline
 \textbf{GROUP BY (Aggregate)} & \textbf{Window Function} \\ \hline
-\texttt{SELECT dept, AVG(salary)} & \texttt{SELECT name, dept, salary,} \\
-\texttt{FROM employees} & \texttt{AVG(salary) OVER (PARTITION BY dept)} \\
-\texttt{GROUP BY dept;} & \texttt{FROM employees;} \\ \hline
-\textbf{Kết quả:} 2 hàng (2 phòng ban) & \textbf{Kết quả:} 5 hàng (giữ nguyên) \\ \hline
+
+\texttt{SELECT dept, AVG(salary)} &
+\texttt{SELECT name, dept, salary,} \\
+
+\texttt{FROM employees} &
+\texttt{AVG(salary) OVER (PARTITION BY dept)} \\
+
+\texttt{GROUP BY dept;} &
+\texttt{FROM employees;} \\ \hline
+
+\textbf{Kết quả:} &
+\textbf{Kết quả:} \\ \hline
+
+\begin{tabular}{@{}ll@{}}
+IT & 6000.0 \\
+HR & 4500.0
 \end{tabular}
-    \caption{So sánh GROUP BY và Window Function}
-    \label{tab:groupby_vs_window}
+&
+\begin{tabular}{@{}llll@{}}
+Carol & HR & 4000 & 4500.0 \\
+Dave  & HR & 5000 & 4500.0 \\
+Alice & IT & 5000 & 6000.0 \\
+Bob   & IT & 6000 & 6000.0 \\
+Emma  & IT & 7000 & 6000.0
+\end{tabular}
+\\ \hline
+
+\end{tabular}
+\caption{So sánh GROUP BY và Window Function}
+\label{tab:groupby_vs_window}
 \end{table}
+
 
 \subsection{Các thành phần chính}
 
 \subsubsection{PARTITION BY}
 
-PARTITION BY chia tập kết quả thành các partition độc lập. Window function tính toán riêng cho mỗi partition, không có tác động qua lại giữa các partition. Đây là tính chất partition locality, nền tảng cho quan hệ metamorphic MRUP.
+\noindent PARTITION BY chia tập kết quả thành các partition độc lập. Window function tính toán riêng cho mỗi partition, không có tác động qua lại giữa các partition. Đây là tính chất partition locality, nền tảng cho quan hệ metamorphic MRUP.
 
 \begin{table}[H]
 	\centering
@@ -52,7 +102,7 @@ Dave & HR & 5000 & 4500 \\ \hline
 
 \subsubsection{ORDER BY}
 
-ORDER BY xác định thứ tự các hàng trong partition, ảnh hưởng trực tiếp đến ROW\_NUMBER, RANK và frame specification. SQL chuẩn hỗ trợ NULLS FIRST/LAST để xử lý NULL. Khi có giá trị trùng nhau, cần thêm cột tie-breaker để đảm bảo tính deterministic.
+\noindent ORDER BY xác định thứ tự các hàng trong partition, ảnh hưởng trực tiếp đến các hàm ranking như ROW\_NUMBER, RANK và frame specification.
 
 \begin{table}[H]
     \centering
@@ -71,7 +121,7 @@ Carol & 4000 & 4 & 4 \\ \hline
 
 \subsubsection{Frame Specification}
 
-Frame specification xác định tập hợp hàng trong partition để tính toán. SQL hỗ trợ ROWS frame (đếm theo hàng vật lý) và RANGE frame (đếm theo giá trị logic). Frame boundaries bao gồm UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW, N FOLLOWING, và UNBOUNDED FOLLOWING.
+\noindent Frame specification xác định tập hợp hàng trong partition để tính toán. SQL hỗ trợ ROWS frame (đếm theo hàng vật lý) và RANGE frame (đếm theo giá trị logic). Frame boundaries bao gồm UNBOUNDED PRECEDING, N PRECEDING, CURRENT ROW, N FOLLOWING, và UNBOUNDED FOLLOWING.
 
 \begin{table}[H]
     \centering
@@ -90,7 +140,7 @@ Frame specification xác định tập hợp hàng trong partition để tính t
 
 \subsection{Phân loại Window Functions}
 
-Window functions được chia thành ba nhóm: ranking functions, aggregate window functions, và value functions.
+\noindent Window functions được chia thành ba nhóm: ranking functions, aggregate window functions, và value functions.
 
 \begin{table}[H]
     \centering
@@ -128,7 +178,7 @@ Apr & 1300 & 1100 & +200 & 4600 \\ \hline
 
 \subsection{Tổng quan về SQLite}
 
-SQLite là DBMS nhúng (embedded), mã nguồn mở, hoạt động serverless với database lưu trong một file. SQLite có kích thước nhỏ gọn (~600KB), không cần cấu hình, chạy đa nền tảng, và có độ tin cậy cao với test coverage >100\%. SQLite được sử dụng trong hàng tỷ thiết bị từ smartphone đến trình duyệt web.
+\noindent SQLite là DBMS nhúng (embedded), mã nguồn mở, hoạt động serverless với database lưu trong một file. SQLite có kích thước nhỏ gọn (~600KB), không cần cấu hình, chạy đa nền tảng, và có độ tin cậy cao với test coverage >100\%. SQLite được sử dụng trong hàng tỷ thiết bị từ smartphone đến trình duyệt web.
 
 Window functions được giới thiệu trong SQLite 3.25.0 (9/2018). Tuy nhiên, SQLite có một số hạn chế so với SQL chuẩn.
 
@@ -152,7 +202,7 @@ SQLite xử lý window functions qua pipeline: parsing (xây dựng AST) → val
 
 \subsection{Không gian trạng thái lớn}
 
-Window functions tạo ra không gian trạng thái rất lớn: 15+ loại hàm × 2 loại frame (ROWS, RANGE) × 5 loại boundaries × 4 loại exclusions ≈ 3000+ configurations, chưa kể ORDER BY, PARTITION BY và tương tác với WHERE, JOIN, GROUP BY, subqueries.
+\noindent Window functions tạo ra không gian trạng thái rất lớn: 15+ loại hàm × 2 loại frame (ROWS, RANGE) × 5 loại boundaries × 4 loại exclusions ≈ 3000+ configurations, chưa kể ORDER BY, PARTITION BY và tương tác với WHERE, JOIN, GROUP BY, subqueries.
 
 \begin{table}[H]
 	\centering
@@ -174,7 +224,7 @@ Tính không xác định (non-determinism) xảy ra khi ORDER BY không đủ x
 
 \subsection{Hạn chế của phương pháp kiểm thử hiện tại}
 
-Các oracle như PQS, TLP, NoREC tập trung vào WHERE, JOIN, GROUP BY nhưng không chuyên biệt cho window functions. Chúng không khai thác partition locality (kết quả mỗi partition độc lập), không kiểm thử đầy đủ frame specifications phức tạp, không chú trọng ordering semantics, và không kiểm thử tương tác giữa nhiều window functions.
+\noindent Các oracle như PQS, TLP, NoREC tập trung vào WHERE, JOIN, GROUP BY nhưng không chuyên biệt cho window functions. Chúng không khai thác partition locality (kết quả mỗi partition độc lập), không kiểm thử đầy đủ frame specifications phức tạp, không chú trọng ordering semantics, và không kiểm thử tương tác giữa nhiều window functions.
 
 \begin{table}[H]
     \centering
@@ -192,4 +242,3 @@ Multiple Windows & Không kiểm thử tương tác nhiều window functions tro
 \end{table}
 
 Đây là động lực phát triển MRUP Oracle, một test oracle chuyên biệt khai thác partition locality và tập trung vào đặc thù của window functions.
-

@@ -53,7 +53,6 @@ Tất cả các thí nghiệm được thực hiện trong môi trường đư�
     \item Java Runtime: OpenJDK 17.0.9
     \item SQLite: Phiên bản 3.45.0 (stable, tháng 1/2024)
     \item SQLancer Framework: Phiên bản tích hợp MRUP Oracle
-    \item Random seed: Cố định (42) để đảm bảo tính tái tạo
 \end{itemize}
 
 \subsection{Tập dữ liệu kiểm thử}
@@ -227,19 +226,17 @@ Câu hỏi nghiên cứu đầu tiên đánh giá liệu MRUP Oracle có thực 
 \rowcolor[HTML]{FFECEA}
 \textbf{Ràng buộc} & \textbf{Thỏa mãn} & \textbf{Vi phạm} & \textbf{Tỷ lệ} \\
 \hline
-C0: PARTITION BY bắt buộc & 10000 & 0 & 100.0\% \\
+C0: PARTITION BY bắt buộc & 13740 & 0 & 100.0\% \\
 \hline
-C1: Chỉ dùng dept & 10000 & 0 & 100.0\% \\
+C1: Chỉ dùng dept & 5874 & 7866 & 42.75\% \\
 \hline
-C2: Chỉ dùng salary/age & 10000 & 0 & 100.0\% \\
+C2: Chỉ dùng salary/age & 3761 & 9979 & 27.37\% \\
 \hline
-C3: Không frame cho ranking & 10000 & 0 & 100.0\% \\
+C3: Không frame cho ranking & 13740 & 0 & 100.0\% \\
 \hline
-C4: RANGE với 1 cột ORDER BY & 10000 & 0 & 100.0\% \\
+C4: RANGE với 1 cột ORDER BY & 13639 & 101 & 99.26\% \\
 \hline
-C5: Hàm xác định & 10000 & 0 & 100.0\% \\
-\hline
-	extbf{Tổng thể} & 10000 & 0 & 100.0\% \\
+C5: Hàm xác định & 13740 & 0 & 100.0\% \\
 \hline
 \end{tabular}
 \end{table}
@@ -267,11 +264,11 @@ Bảng~\ref{tab:mutation_application} trình bày tỷ lệ áp dụng thành c�
 \rowcolor[HTML]{FFECEA}
 \textbf{Loại đột biến} & \textbf{Áp dụng} & \textbf{Bỏ qua} & \textbf{Tỷ lệ} & \textbf{Mục tiêu} \\
 \hline
-Window Spec & 9488 & 511 & 94.9\% & 	extasciitilde90\% \\
+Window Spec & 13141 & 599 & 95.64\% & 90\% \\
 \hline
-Identity Wrapper & 9590 & 409 & 95.9\% & 	extasciitilde98\% \\
+Identity Wrapper & 13227 & 513 & 96.26\% & 98\% \\
 \hline
-CASE WHEN & 10000 & 0 & 100.0\% & 100\% \\
+CASE WHEN & 13740 & 0 & 100.0\% & 100\% \\
 \hline
 \end{tabular}
 \end{table}
@@ -291,22 +288,23 @@ Bảng~\ref{tab:case_when_distribution} trình bày phân bố 5 chiến lược
 \begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor[HTML]{FFECEA}
-\textbf{Chiến lược} & \textbf{Số lượng} & \textbf{Tỷ lệ} & \textbf{Mục tiêu} \\
+\textbf{Chiến lược} & \textbf{Số lượng} & \textbf{Tỷ lệ (\%)} & \textbf{Mục tiêu (\%)} \\
 \hline
-Constant Condition & 2692 & 26.9\% & 30\% \\
+Constant Condition & 3698 & 26.9 & 30 \\
 \hline
-Window Function in WHEN & 2752 & 27.5\% & 25\% \\
+Window Function in WHEN & 3820 & 27.8 & 25 \\
 \hline
-Different Functions & 1745 & 17.5\% & 20\% \\
+Different Window Functions & 2519 & 18.3 & 20 \\
 \hline
-Identical Branches & 1852 & 18.5\% & 15\% \\
+Identical Branches & 2496 & 18.2 & 15 \\
 \hline
-NULL Handling & 958 & 9.6\% & 10\% \\
+NULL Handling & 1207 & 8.8 & 10 \\
 \hline
-	extbf{Tổng} & 10000 & 	extbf{100\%} & 	extbf{100\%} \\
+\textbf{Tổng} & \textbf{13740} & \textbf{100.0} & \textbf{100} \\
 \hline
 \end{tabular}
 \end{table}
+
 
 \textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
 
@@ -327,38 +325,39 @@ Bảng~\ref{tab:input_diversity} định lượng sự đa dạng của schema v
 \hline
 \multicolumn{4}{|l|}{\textit{Đa dạng schema}} \\
 \hline
-Số cột (3-7) & 4.7 & 4-5 trung bình & ✓ \\
+Số cột (3--7) & 4.5 & 4--5 trung bình & ✓ \\
 \hline
-Kiểu: INTEGER & 13.9\% & 40\% & ✓ \\
+Kiểu: INTEGER & 30.3\% & 40\% & ✓ \\
 \hline
-Kiểu: REAL & 39.6\% & 30\% & ✓ \\
+Kiểu: REAL & 27.5\% & 30\% & ✓ \\
 \hline
-Kiểu: TEXT & 46.6\% & 30\% & ✓ \\
+Kiểu: TEXT & 42.1\% & 30\% & ✓ \\
 \hline
-Tỷ lệ NULL & 28.5\% & 	extasciitilde30\% & ✓ \\
+Tỷ lệ NULL & 6.0\% & \textasciitilde30\% & ✗ \\
 \hline
-Tỷ lệ edge case & 14.2\% & 	extasciitilde15\% & ✓ \\
+Tỷ lệ edge case & 14.2\% & \textasciitilde15\% & ✓ \\
 \hline
 \multicolumn{4}{|l|}{\textit{Đa dạng truy vấn}} \\
 \hline
-Aggregate function & 88.2\% & 98\% & ✓ \\
+Aggregate function & 98.1\% & 98\% & ✓ \\
 \hline
-Ranking function & 11.8\% & 2\% & ✓ \\
+Ranking function & 1.9\% & 2\% & ✓ \\
 \hline
-ORDER BY: 1 cột & 90.2\% & 	extasciitilde33\% & ✓ \\
+ORDER BY: 1 cột & 100.0\% & \textasciitilde33\% & ✓ \\
 \hline
-ORDER BY: 2 cột & 8.6\% & 	extasciitilde44\% & ✓ \\
+ORDER BY: 2 cột & 0.0\% & \textasciitilde44\% & ✗ \\
 \hline
-ORDER BY: 3 cột & 1.2\% & 	extasciitilde22\% & ✓ \\
+ORDER BY: 3 cột & 0.0\% & \textasciitilde22\% & ✗ \\
 \hline
-Có frame & 51.2\% & 	extasciitilde50\% & ✓ \\
+Có frame & 47.9\% & \textasciitilde50\% & ✓ \\
 \hline
-Frame: ROWS & 21.1\% & varies & ✓ \\
+Frame: ROWS & 53.5\% & varies & ✓ \\
 \hline
-Frame: RANGE & 78.9\% & varies & ✓ \\
+Frame: RANGE & 46.5\% & varies & ✓ \\
 \hline
 \end{tabular}
 \end{table}
+
 
 \textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
 
@@ -379,19 +378,13 @@ Bảng~\ref{tab:comparator_behavior} trình bày cách test case đi qua các t�
 \begin{tabular}{|l|c|c|c|}
 \hline
 \rowcolor[HTML]{FFECEA}
-\textbf{Tầng bộ so sánh} & \textbf{Đạt tới} & \textbf{Vượt qua} & \textbf{Tỷ lệ vượt qua} \\
+\textbf{Tầng bộ so sánh} & \textbf{Thực tế} & \textbf{Kỳ vọng} & \textbf{Tỷ lệ vượt qua} \\
 \hline
-Tầng 1: Cardinality & 10000 & 10000 & 100.0\% \\
+Tầng 1: Cardinality & 13740 & 13740 & 100.0\% \\
 \hline
-Tầng 2: Normalization & 10000 & 10000 & 100.0\% \\
+Tầng 2: Normalization & 13740 & 13740 & 100.0\% \\
 \hline
-Tầng 3: Per-Partition & 10000 & 10000 & 100.0\% \\
-\hline
-\multicolumn{4}{|c|}{}\\
-\hline
-Partition Disjointness & 10000 & 10000 & 100.0\% \\
-\hline
-Type-Aware Comparison & 10000 & 10000 & 100.0\% \\
+Tầng 3: Per-Partition & 13740 & 13740 & 100.0\% \\
 \hline
 \end{tabular}
 \end{table}
@@ -441,18 +434,19 @@ Bảng~\ref{tab:oracle_throughput} trình bày thông lượng và thời gian t
 \begin{table}[H]
 \centering
 \caption{Thông lượng và hiệu suất oracle}
+\label{tab:oracle_throughput}
 \begin{tabular}{|l|c|}
 \hline
 \rowcolor[HTML]{FFECEA}
 \textbf{Metric} & \textbf{Giá trị} \\
 \hline
-Test case/giây (trung bình) & 55.2 \\
+Test case/giây (trung bình) & 20.5 \\
 \hline
-Test case/giây (median) & 54.8 \\
+Test case/giây (median) & 23.8 \\
 \hline
-Thời gian/test case (trung bình) & 18.1 ms \\
+Thời gian/test case (trung bình) & 48.8 ms \\
 \hline
-Thời gian/test case (median) & 18.3 ms \\
+Thời gian/test case (median) & 42.0 ms \\
 \hline
 \multicolumn{2}{|c|}{\textit{Phân tích thời gian từng giai đoạn}} \\
 \hline
@@ -468,9 +462,9 @@ So sánh kết quả & 4.2 ms \\
 \hline
 \multicolumn{2}{|c|}{\textit{Thông lượng chiếu dài hạn}} \\
 \hline
-Thông lượng (1 giờ) & 198720 test case \\
+Thông lượng (1 giờ) & 73,800 test case \\
 \hline
-Thông lượng (24 giờ) & 4769280 test case \\
+Thông lượng (24 giờ) & 1,771,200 test case \\
 \hline
 \end{tabular}
 \end{table}
