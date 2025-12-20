@@ -20,12 +20,12 @@ Xuất phát từ khoảng trống nghiên cứu này, đề tài \textbf{``Phá
 Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracle (MR-Union-Partition Oracle) - một test oracle sử dụng quan hệ metamorphic để phát hiện lỗi logic trong việc xử lý window functions của SQLite. Cụ thể:
 
 \renewcommand{\labelitemi}{$-$}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
 	\item Nghiên cứu và phân tích đặc điểm của window functions trong SQL chuẩn và SQLite.
 	\item Thiết kế quan hệ metamorphic MRUP dựa trên tính chất partition locality của window functions.
 	\item Triển khai MRUP Oracle trong framework SQLancer với các thành phần: query generator, mutation operators, và result comparator.
 	\item Đánh giá hiệu quả của MRUP Oracle thông qua các thí nghiệm trên SQLite.
-\end{itemize} 
+\end{itemize}
 
 \vspace{0.3cm}
 
@@ -34,7 +34,7 @@ Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracl
 Để đạt được mục tiêu nghiên cứu, đề tài áp dụng các phương pháp sau:
 
 \renewcommand{\labelitemi}{$-$}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
 	\item \textbf{Nghiên cứu lý thuyết:} Tìm hiểu các công trình nghiên cứu về kiểm thử DBMS, đặc biệt là các kỹ thuật metamorphic testing và differential testing. Phân tích đặc tả SQL chuẩn về window functions và cách triển khai trong SQLite.
 	
 	\item \textbf{Thiết kế quan hệ metamorphic:} Xây dựng quan hệ MRUP dựa trên tính chất toán học: $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$, trong đó $H$ là window function query với điều kiện các partition trong $t_1$ và $t_2$ là rời rạc (disjoint).
@@ -42,7 +42,7 @@ Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracl
 	\item \textbf{Triển khai và thử nghiệm:} Phát triển MRUP Oracle trong framework SQLancer bằng Java, tích hợp các kỹ thuật mutation testing và constraint-based query generation. Thực hiện các thí nghiệm trên nhiều phiên bản SQLite để đánh giá hiệu quả.
 	
 	\item \textbf{Phân tích và đánh giá:} Sử dụng các metrics như query diversity, mutation coverage, và execution performance để đánh giá chất lượng của oracle.
-\end{itemize} 
+\end{itemize}
 
 \vspace{0.3cm}
 
@@ -51,15 +51,15 @@ Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracl
 Đề tài mang lại các đóng góp chính sau:
 
 \renewcommand{\labelitemi}{$-$}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
 	\item \textbf{Quan hệ metamorphic MRUP mới:} Đề xuất quan hệ metamorphic chuyên biệt cho window functions, khai thác tính chất partition locality để phát hiện lỗi logic.
 	
 	\item \textbf{MRUP Oracle hoàn chỉnh:} Triển khai một test oracle với các thành phần: (1) Constraint-based query generator tuân thủ 6 ràng buộc C0-C5 đảm bảo tính đúng đắn của metamorphic relation, (2) Mutation operators bao gồm window spec mutations và CASE WHEN mutations dựa trên các lỗi thực tế, (3) Three-layer result comparator với partition-aware sorting và type-aware comparison.
 	
-	\item \textbf{Tích hợp vào SQLancer:} MRUP Oracle được tích hợp vào framework SQLancer, cho phép kiểm thử tự động và liên tục trên SQLite.
+	% \item \textbf{Tích hợp vào SQLancer:} MRUP Oracle được tích hợp vào framework SQLancer, cho phép kiểm thử tự động và liên tục trên SQLite.
 	
 	\item \textbf{Phân tích và đánh giá:} Đánh giá chi tiết về hiệu quả của MRUP Oracle, xác định các điểm mạnh và hạn chế, đề xuất hướng cải tiến trong tương lai.
-\end{itemize} 
+\end{itemize}
 
 \vspace{0.3cm}
 
@@ -68,7 +68,7 @@ Mục tiêu chính của đề tài là thiết kế và triển khai MRUP Oracl
 Nội dung chính của báo cáo được trình bày như sau:
 
 \renewcommand{\labelitemi}{$-$}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
 	\item \textbf{Mở đầu:} Trình bày lý do chọn đề tài, mục tiêu, phương pháp nghiên cứu, đóng góp và bố cục của báo cáo.
 	
 	\item \textbf{Chương 1 - Kiến thức nền tảng:} Giới thiệu về window functions trong SQL, các thành phần cơ bản (PARTITION BY, ORDER BY, frame specification), và các loại window functions (ranking, aggregate, value functions). Phân tích đặc điểm của SQLite và cách triển khai window functions.
@@ -80,4 +80,4 @@ Nội dung chính của báo cáo được trình bày như sau:
 	\item \textbf{Chương 4 - Thí nghiệm và đánh giá:} Thiết kế thí nghiệm với các metrics đánh giá, kết quả thực nghiệm trên SQLite, phân tích hiệu quả và hạn chế của MRUP Oracle. So sánh với các oracle khác trong SQLancer.
 	
 	\item \textbf{Kết luận và hướng phát triển:} Tổng kết các kết quả đạt được, đánh giá mức độ hoàn thành mục tiêu, và đề xuất các hướng nghiên cứu tiếp theo để cải thiện MRUP Oracle.
-\end{itemize} 
+\end{itemize}

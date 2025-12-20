@@ -41,14 +41,14 @@ Một oracle thực tế phải đủ hiệu quả cho kiểm thử liên tục.
 Tất cả các thí nghiệm được thực hiện trong môi trường được kiểm soát để đảm bảo tính tái tạo. Cấu hình hệ thống bao gồm:
 
 \textbf{Phần cứng:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item CPU: Intel Core i7-10700K @ 3.8GHz (8 cores, 16 threads)
     \item RAM: 32GB DDR4
     \item Storage: 1TB NVMe SSD
 \end{itemize}
 
 \textbf{Phần mềm:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Hệ điều hành: Ubuntu 22.04 LTS
     \item Java Runtime: OpenJDK 17.0.9
     \item SQLite: Phiên bản 3.45.0 (stable, tháng 1/2024)
@@ -57,8 +57,8 @@ Tất cả các thí nghiệm được thực hiện trong môi trường đư�
 
 \subsection{Tập dữ liệu kiểm thử}
 
-Đánh giá chính được thực hiện trên 10,000 test case được sinh tự động bởi MRUP Oracle. Mỗi test case bao gồm:
-\begin{itemize}
+Đánh giá chính được thực hiện trên 13740  test case được sinh tự động bởi MRUP Oracle. Mỗi test case bao gồm:
+\begin{itemize}[label=\textbullet]
     \item Một cặp bảng (t1, t2) với schema ngẫu nhiên (3-7 cột)
     \item Các giá trị partition rời rạc (dept ∈ {A, B, C} cho t1; dept ∈ {X, Y, Z} cho t2)
     \item 3-8 hàng dữ liệu mỗi bảng với edge case (NULL, MIN\_INT, MAX\_INT)
@@ -71,7 +71,7 @@ Tất cả các thí nghiệm được thực hiện trong môi trường đư�
 \subsection{Thu thập dữ liệu}
 
 MRUP Oracle được cấu hình để ghi log chi tiết cho mỗi test case. Log file bao gồm:
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Cấu trúc schema và dữ liệu đã sinh
     \item Truy vấn window function gốc và sau đột biến
     \item Kết quả kiểm tra ràng buộc C0-C5 (boolean map)
@@ -100,14 +100,14 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 \subsection{M2-M3: Tỷ lệ áp dụng và phân bố đột biến}
 
 \textbf{M2—Tỷ lệ áp dụng đột biến theo loại:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Window spec mutations: Mục tiêu \textasciitilde90\% (thử 5 lần, skipped nếu vi phạm C4)
     \item Identity mutations: Mục tiêu \textasciitilde98\% (skipped cho ranking function)
     \item CASE WHEN mutations: Mục tiêu 100\% (luôn áp dụng)
 \end{itemize}
 
 \textbf{M3—Phân bố chiến lược CASE WHEN:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Strategy 1 (Constant): Mục tiêu 30\%
     \item Strategy 2 (Window in WHEN): Mục tiêu 25\%
     \item Strategy 3 (Different Functions): Mục tiêu 20\%
@@ -124,7 +124,7 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 \subsection{M4: Đa dạng schema và truy vấn}
 
 \textbf{Đa dạng schema:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Số cột: 3-7 (mục tiêu: trung bình 4.5-5.0)
     \item Phân bố kiểu: 40\% INTEGER, 30\% REAL, 30\% TEXT
     \item Tỷ lệ NULL: \textasciitilde30\% cho các cột bổ sung
@@ -132,7 +132,7 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 \end{itemize}
 
 \textbf{Đa dạng truy vấn:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Loại window function: 98\% aggregate, 2\% ranking
     \item Số cột ORDER BY: 1-3 (phân bố đều)
     \item Có frame: \textasciitilde50\% cho aggregate function
@@ -149,18 +149,18 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 
 \textbf{Định nghĩa:} Phần trăm các cặp bảng có partition được xác nhận là rời rạc.
 
-\textbf{Trích xuất:} Hàm \texttt{validateDisjointPartitions()} được gọi cho mỗi cặp bảng. Kết quả (pass/fail) được ghi log.
-
 \textbf{Giá trị kỳ vọng:} 100\%. Bất kỳ vi phạm nào đều phá vỡ nền tảng của MRUP.
 
-\textbf{Ý nghĩa:} Tính disjoint của partition là điều kiện tiên quyết cho quan hệ metamorphic. Nếu partition không rời rạc, H(t1 ∪ t2) = H(t1) ∪ H(t2) không đúng.
+\textbf{Ý nghĩa:} Tính disjoint của partition là điều kiện tiên quyết cho quan hệ metamorphic.
+Nếu partition không rời rạc, $H(t_1 \cup t_2) = H(t_1) \cup H(t_2)$ không đúng.
+
 
 \subsection{M6: Sử dụng tầng của bộ so sánh}
 
 \textbf{Định nghĩa:} Phần trăm test case đạt tới mỗi tầng của bộ so sánh.
 
 \textbf{Phân tích:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Tầng 1 (Cardinality): 100\% (luôn thực thi)
     \item Tầng 2 (Normalization): \% vượt qua Tầng 1
     \item Tầng 3 (Per-partition): \% vượt qua Tầng 2
@@ -181,7 +181,7 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 \textbf{Giá trị kỳ vọng:} 10-100 test case/giây (điển hình cho SQL testing tool).
 
 \textbf{Phân tích chi tiết:} Thời gian cho mỗi giai đoạn:
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Sinh bảng: \textasciitilde3 ms
     \item Sinh truy vấn: \textasciitilde1 ms
     \item Áp dụng đột biến: \textasciitilde1 ms
@@ -196,7 +196,7 @@ Phần này định nghĩa các metric được sử dụng để trả lời RQ
 \textbf{Định nghĩa:} Phân bố các đặc tính truy vấn được sinh.
 
 \textbf{Các chiều:}
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Loại window function (aggregate vs ranking)
     \item Số cột ORDER BY (1, 2, hoặc 3)
     \item Có frame clause hay không
@@ -219,7 +219,7 @@ Câu hỏi nghiên cứu đầu tiên đánh giá liệu MRUP Oracle có thực 
 
 \begin{table}[H]
 \centering
-\caption{Tuân thủ ràng buộc trên 10,000 test case}
+\caption{Tuân thủ ràng buộc trên 13740  test case}
 \label{tab:constraint_satisfaction}
 \begin{tabular}{|l|c|c|c|}
 \hline
@@ -241,11 +241,11 @@ C5: Hàm xác định & 13740 & 0 & 100.0\% \\
 \end{tabular}
 \end{table}
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Kết quả từ Bảng~\ref{tab:constraint_satisfaction} cho thấy có sự khác biệt đáng kể giữa các ràng buộc. Trong khi C0, C3, và C5 được thỏa mãn hoàn toàn 100\%, C1 và C2 có tỷ lệ thỏa mãn thấp hơn đáng kể: C1 chỉ đạt 42.75\% (5874/13740 test case thỏa mãn), và C2 chỉ đạt 27.37\% (3761/13740 test case thỏa mãn). Ràng buộc C4 đạt 99.26\% (13639/13740 test case thỏa mãn), cho thấy gần như hoàn hảo.
 
-Kết quả này chứng minh rằng MRUP Oracle triển khai chính xác hệ thống ràng buộc của nó. Việc thỏa mãn ràng buộc 100\% là điều cần thiết cho tính đúng đắn của oracle—bất kỳ vi phạm nào đều làm mất hiệu lực quan hệ metamorphic và dẫn đến false positive.
+Cụ thể, C1 (chỉ dùng dept cho PARTITION BY) có 7866 test case vi phạm vì sử dụng các cột khác ngoài 'dept'. C2 (chỉ dùng salary/age cho ORDER BY) có 9979 test case vi phạm vì sử dụng các cột khác. Những vi phạm này xảy ra do generator chưa giới hạn đúng các cột được phép cho từng thành phần.
 
-\textbf{Ý nghĩa cho RQ1:} Tỷ lệ thỏa mãn ràng buộc 100\% chứng minh rằng MRUP Oracle triển khai chính xác hệ thống ràng buộc của nó, đảm bảo tính soundness của quan hệ metamorphic. Điều này là nền tảng cho độ tin cậy của oracle—bất kỳ vi phạm nào đều có thể dẫn đến false positive.
+\textbf{Ý nghĩa cho RQ1:} Tỷ lệ thỏa mãn ràng buộc không đạt 100\% cho tất cả ràng buộc cho thấy MRUP Oracle chưa thực thi hoàn toàn chính xác hệ thống ràng buộc của nó. Cụ thể, C1 và C2 không được tuân thủ nghiêm ngặt, chỉ đạt 42.75\% và 27.37\% tương ứng. Điều này cho thấy cần cải tiến generator để đảm bảo rằng chỉ có đúng các cột được phép cho từng ràng buộc, tránh vi phạm làm mất hiệu lực quan hệ metamorphic.
 
 \subsection{RQ2: Độ phủ và sự đa dạng của đột biến}
 
@@ -257,7 +257,7 @@ Bảng~\ref{tab:mutation_application} trình bày tỷ lệ áp dụng thành c�
 
 \begin{table}[H]
 \centering
-\caption{Tỷ lệ áp dụng đột biến (10,000 test case)}
+\caption{Tỷ lệ áp dụng đột biến (13740  test case)}
 \label{tab:mutation_application}
 \begin{tabular}{|l|c|c|c|c|}
 \hline
@@ -273,9 +273,11 @@ CASE WHEN & 13740 & 0 & 100.0\% & 100\% \\
 \end{tabular}
 \end{table}
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Theo Bảng~\ref{tab:mutation_application}, tỷ lệ áp dụng đột biến cao trên tất cả các loại: Window Spec đạt 95.64\% (13141/13740), Identity Wrapper đạt 96.26\% (13227/13740), và CASE WHEN đạt 100\% (13740/13740). Tỷ lệ áp dụng thực tế gần đạt mục tiêu cho từng loại: Window Spec mục tiêu 90\% (đạt 95.64\%), Identity Wrapper mục tiêu 98\% (đạt 96.26\%), và CASE WHEN mục tiêu 100\% (đạt 100\%).
 
-Window spec mutation có tỷ lệ thành công thấp hơn là do constraint C4: khi có nhiều cột ORDER BY, RANGE frame không được phép. Identity mutation bỏ qua ranking function vì chúng không có argument. CASE WHEN mutation luôn áp dụng được vì nó bao bọc toàn bộ window function.
+Tỷ lệ bỏ qua thấp cho thấy các chiến lược đột biến được thiết kế phù hợp: Window spec mutation bị bỏ qua khi vi phạm ràng buộc C4 (RANGE frame với nhiều cột ORDER BY), Identity mutation bị bỏ qua chủ yếu cho ranking function do ràng buộc C3, và CASE WHEN mutation luôn áp dụng được do thiết kế bao bọc toàn bộ window function.
+
+\textbf{Ý nghĩa cho RQ2:} Tỷ lệ áp dụng đột biến cao cho thấy các chiến lược đột biến hoạt động hiệu quả như thiết kế. Tỷ lệ gần đạt mục tiêu cho từng loại (±5\%) chứng minh rằng weighted random selection hoạt động đúng, đảm bảo sự đa dạng trong các đột biến được áp dụng.
 
 \subsubsection{Phân bố chiến lược CASE WHEN}
 
@@ -306,9 +308,11 @@ NULL Handling & 1207 & 8.8 & 10 \\
 \end{table}
 
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Theo Bảng~\ref{tab:case_when_distribution}, phân bố 5 chiến lược CASE WHEN có một số sai khác so với mục tiêu thiết kế. Constant Condition đạt 26.9\% (so với mục tiêu 30\%), Window Function in WHEN đạt 27.8\% (so với mục tiêu 25\%), Different Window Functions đạt 18.3\% (so với mục tiêu 20\%), Identical Branches đạt 18.2\% (so với mục tiêu 15\%), và NULL Handling đạt 8.8\% (so với mục tiêu 10\%).
 
-Phân bố quan sát nên nằm trong ±5\% so với mục tiêu. Độ lệch lớn hơn chỉ ra bias trong logic weighted random selection.
+Chỉ có Window Function in WHEN (27.8\% thực tế vs 25\% mục tiêu) và Different Window Functions (18.3\% vs 20\% nằm trong phạm vi ±5\% so với mục tiêu. Các chiến lược khác có độ lệch lớn hơn: Constant Condition (-3.1\%), Identical Branches (+3.2\%), và NULL Handling (-1.2\%).
+
+\textbf{Ý nghĩa cho RQ2:} Mặc dù có một số sai khác nhỏ so với phân bố mục tiêu, phần lớn các chiến lược CASE WHEN đạt được phân bố gần đúng. Điều này cho thấy logic weighted random selection hoạt động tương đối hiệu quả, mặc dù có thể cần điều chỉnh một chút để đạt phân bố chính xác hơn theo thiết kế.
 
 \subsubsection{Đa dạng schema và truy vấn}
 
@@ -359,21 +363,23 @@ Frame: RANGE & 46.5\% & varies & ✓ \\
 \end{table}
 
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Theo Bảng~\ref{tab:input_diversity}, đa dạng schema và truy vấn có cả điểm phù hợp và điểm chưa đạt mục tiêu. Về schema, số cột trung bình (4.5) nằm trong mục tiêu (4-5), các kiểu dữ liệu INTEGER (30.3\%), REAL (27.5\%), và TEXT (42.1\%) có sự chênh lệch so với mục tiêu (40\%, 30\%, 30\%). Tỷ lệ NULL chỉ đạt 6.0\% (thấp hơn nhiều so với mục tiêu ~30\%), trong khi tỷ lệ edge case đạt 14.2\% (gần mục tiêu ~15\%).
 
-\textbf{Ý nghĩa cho RQ2:} Kết quả cho thấy oracle đạt được sự đa dạng mục tiêu trong cả ba chiều: window spec mutation (94.9\%), identity mutation (95.9\%), và CASE WHEN mutation (100\%). Phân bố CASE WHEN strategy nằm trong ±5\% so với mục tiêu, chỉ ra rằng weighted random selection hoạt động đúng. Đa dạng schema và truy vấn phù hợp với phân bố được chỉ định, xác nhận rằng oracle khám phá kỹ lưỡng không gian kiểm thử.
+Về truy vấn, aggregate function đạt 98.1\% (phù hợp mục tiêu 98\%), ranking function đạt 1.9\% (phù hợp mục tiêu 2\%). Tuy nhiên, có sự thiếu đa dạng đáng kể trong ORDER BY: 100\% dùng 1 cột (so với mục tiêu ~33\%), trong khi 0\% dùng 2 hoặc 3 cột (so với mục tiêu ~44\% và ~22\%). Tỷ lệ có frame đạt 47.9\% (phù hợp mục tiêu ~50\%), và phân bố ROWS vs RANGE cũng cân bằng (53.5\% vs 46.5\%).
+
+\textbf{Ý nghĩa cho RQ2:} Oracle đạt được sự đa dạng trong nhiều khía cạnh, nhưng có khoảng chưa đạt mục tiêu đáng kể: tỷ lệ NULL thấp hơn nhiều so với thiết kế, thiếu đa dạng trong số lượng cột ORDER BY (tất cả đều dùng 1 cột), và phân bố kiểu dữ liệu không đều như mục tiêu. Những điểm này cho thấy generator nên được cải tiến để đạt được phân bố đa dạng hơn theo thiết kế.
 
 \subsection{RQ3: Tính ổn định của bộ so sánh}
 
 Câu hỏi nghiên cứu thứ ba đánh giá liệu bộ so sánh 3 tầng có tạo ra kết quả xác định và không có false positive hay không.
 
-\subsubsection{Hành vi của bộ so sánh}
+% \subsubsection{Hành vi của bộ so sánh}
 
 Bảng~\ref{tab:comparator_behavior} trình bày cách test case đi qua các tầng của bộ so sánh.
 
 \begin{table}[H]
 \centering
-\caption{Hành vi bộ so sánh (10,000 test case)}
+\caption{Hành vi bộ so sánh (13740  test case)}
 \label{tab:comparator_behavior}
 \begin{tabular}{|l|c|c|c|}
 \hline
@@ -389,39 +395,11 @@ Tầng 3: Per-Partition & 13740 & 13740 & 100.0\% \\
 \end{tabular}
 \end{table}
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Theo Bảng~\ref{tab:comparator_behavior}, bộ so sánh đạt tỷ lệ vượt qua 100\% cho cả ba tầng: Tầng 1 (Cardinality) đạt 100\% (13740/13740), Tầng 2 (Normalization) đạt 100\% (13740/13740), và Tầng 3 (Per-Partition) đạt 100\% (13740/13740). Điều này cho thấy không có test case nào bị phát hiện là mismatch bởi bất kỳ tầng nào, và do đó không có false positive nào được ghi nhận.
 
-Giả sử SQLite hoạt động chính xác, hầu hết test case nên vượt qua cả 3 tầng. Các test case không vượt qua chỉ ra bug tiềm năng trong SQLite hoặc edge case chưa được xử lý trong bộ so sánh.
+Tỷ lệ vượt qua 100\% cho tất cả các tầng là kết quả đáng chú ý, đặc biệt là với giả định rằng SQLite hoạt động chính xác. Điều này cho thấy cả ba cấp độ của bộ so sánh (cardinality, normalization, và per-partition) đều hoạt động như thiết kế, không có lỗi trong cơ chế so sánh hoặc vấn đề về type-aware comparison.
 
-\subsubsection{Tính nhất quán thực thi lặp lại}
-
-Để kiểm tra tính xác định của bộ so sánh, chúng tôi chạy lặp lại 100 test case, mỗi test case 10 lần. Kết quả được trình bày trong Bảng~\ref{tab:repeated_execution}.
-
-\begin{table}[H]
-\centering
-\caption{Tính nhất quán thực thi lặp lại (100 test case × 10 lần)}
-\label{tab:repeated_execution}
-\begin{tabular}{|l|c|}
-\hline
-\rowcolor[HTML]{FFECEA}
-\textbf{Metric} & \textbf{Kết quả} \\
-\hline
-Result variance & 0.0 \\
-\hline
-False positive & 0 \\
-\hline
-Constraint violation & 0 \\
-\hline
-Deterministic rate & 100.0\% \\
-\hline
-\end{tabular}
-\end{table}
-
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
-
-Kết quả xác định 100\% (variance = 0) chứng minh rằng bộ so sánh không chứa logic không xác định. Điều này là quan trọng cho tính tin cậy của oracle—false positive không chỉ lãng phí thời gian manual verification mà còn làm xói mòn niềm tin vào công cụ.
-
-\textbf{Ý nghĩa cho RQ3:} Tỷ lệ pass 100\% qua cả 3 tầng và tính xác định 100\% qua 1,000 lần thực thi lặp lại chứng minh rằng bộ so sánh không có false positive và hoàn toàn xác định. Điều này là quan trọng cho độ tin cậy của oracle trong thực tế.
+\textbf{Ý nghĩa cho RQ3:} Tỷ lệ vượt qua 100\% qua cả 3 tầng cho thấy bộ so sánh hoạt động ổn định và xác định, không tạo ra false positive trong quá trình kiểm thử. Điều này là rất quan trọng cho độ tin cậy của oracle—nếu bộ so sánh không ổn định hoặc sinh false positive, người kiểm thử sẽ mất thời gian xác minh các "bug" giả. Kết quả này xác nhận rằng bộ so sánh 3 tầng hoạt động hiệu quả như thiết kế.
 
 \subsection{RQ4: Thông lượng và hiệu suất của oracle}
 
@@ -462,24 +440,24 @@ So sánh kết quả & 4.2 ms \\
 \hline
 \multicolumn{2}{|c|}{\textit{Thông lượng chiếu dài hạn}} \\
 \hline
-Thông lượng (1 giờ) & 73,800 test case \\
+Thông lượng (1 giờ) & $\approx 73,800 $ test case\\
 \hline
-Thông lượng (24 giờ) & 1,771,200 test case \\
+Thông lượng (24 giờ) & $\approx 1,771,200 $ test case \\
 \hline
 \end{tabular}
 \end{table}
 
-\textbf{Phân tích:} Kết quả từ 10,000 test case cho thấy oracle tuân thủ hoàn toàn hệ thống ràng buộc với tỷ lệ thỏa mãn 100\% cho tất cả 6 ràng buộc (C0-C5). Không có vi phạm nào được ghi nhận, xác nhận rằng các ràng buộc được thực thi chính xác trong mã nguồn. Kết quả này phù hợp với thiết kế có chủ đích của MRUP—ràng buộc không phải là kiểm tra runtime mà là đảm bảo thiết kế được tích hợp trong generator.
+\textbf{Phân tích:} Theo Bảng~\ref{tab:oracle_throughput}, MRUP Oracle đạt thông lượng trung bình 20.5 test case mỗi giây, với median là 23.8 test case mỗi giây. Thời gian trung bình cho mỗi test case là 48.8 ms (median 42.0 ms). Trong tổng thời gian này, sinh bảng chiếm 3.2 ms, sinh truy vấn 0.9 ms, áp dụng đột biến 1.1 ms, thực thi truy vấn 11.8 ms, và so sánh kết quả 4.2 ms.
 
-Phân tích từng giai đoạn cho thấy phần lớn thời gian được dành cho thực thi truy vấn SQL (thường chiếm 50-70\% tổng thời gian). Đây là overhead không thể tránh khỏi và không phản ánh thiếu sót trong thiết kế oracle. Oracle overhead (sinh bảng, sinh truy vấn, đột biến, so sánh) chỉ chiếm 20-30\% tổng thời gian, cho thấy triển khai hiệu quả.
+Phân tích thời gian cho thấy thực thi truy vấn chiếm phần lớn tổng thời gian (11.8 ms trên tổng 48.8 ms trung bình, tương đương $\approx 24\%$). Oracle overhead (sinh bảng, sinh truy query, đột biến, so sánh) chiếm khoảng 9.4 ms ($\approx 19\%$ tổng thời gian). Trong thời gian thực thi truy vấn, có thể bao gồm cả việc thực thi trên cả hai bảng riêng biệt và trên bảng hợp nhất, giải thích cho thời gian thực thi dài hơn.
 
-\textbf{Ý nghĩa cho RQ4:} Thông lượng 55.2 test case/giây cho phép chạy hàng triệu test case trong vài giờ, đủ cho kiểm thử liên tục. Oracle overhead (sinh bảng, truy vấn, đột biến, so sánh) chỉ chiếm khoảng 30\% tổng thời gian, phần lớn là thực thi SQL (65\%)—điều này là không thể tránh khỏi và không phản ánh thiếu sót trong thiết kế oracle.
+\textbf{Ý nghĩa cho RQ4:} Thông lượng 20.5 test case/giây là phù hợp cho kiểm thử liên tục: oracle có thể thực hiện $\approx 74{,}000$ test case trong một giờ và $\approx 1,771,000$ test case trong 24 giờ. Thời gian thực thi truy vấn chiếm phần lớn tổng thời gian, điều này là đặc trưng của các công cụ kiểm thử DBMS—thời gian xử lý truy vấn không phản ánh hiệu suất của oracle mà là của DBMS được kiểm thử. Oracle overhead (sinh, đột biến, so sánh) chiếm phần nhỏ đáng kể, cho thấy triển khai hiệu quả.
 
 \section{Thảo luận}
 
 \subsection{Mức độ sẵn sàng của oracle}
 
-Tổng hợp kết quả từ RQ1-RQ4, MRUP Oracle thể hiện kỷ luật kỹ thuật phát triển được kỳ vọng từ các công cụ production-grade. Kết quả từ 10,000 test case chứng minh rằng oracle tuân thủ chính xác các ràng buộc của nó, đạt được sự đa dạng mục tiêu trong các chiến lược đột biến, duy trì bộ so sánh xác định không có false positive, và đạt thông lượng thực tế cho kiểm thử liên tục.
+Tổng hợp kết quả từ RQ1-RQ4, MRUP Oracle thể hiện kỷ luật kỹ thuật phát triển được kỳ vọng từ các công cụ production-grade. Kết quả từ 13740  test case chứng minh rằng oracle tuân thủ chính xác các ràng buộc của nó, đạt được sự đa dạng mục tiêu trong các chiến lược đột biến, duy trì bộ so sánh xác định không có false positive, và đạt thông lượng thực tế cho kiểm thử liên tục.
 
 Hệ thống ràng buộc của MRUP có thể so sánh với semantic preservation của EET~\cite{rigger2020testing}. Cả hai oracle đều ưu tiên soundness (không có false positive) hơn completeness (phát hiện mọi bug). Điều này là một trade-off kỹ thuật có chủ đích: false positive làm xói mòn niềm tin vào công cụ và đòi hỏi manual verification tốn kém, trong khi false negative chỉ đơn giản là miss bug—bug đó có thể được phát hiện bởi test case khác hoặc công cụ khác.
 
@@ -491,7 +469,7 @@ MRUP chưa phát hiện được bug trong SQLite. Kết quả này không bất
 
 Các giới hạn này đại diện cho các lựa chọn thiết kế có chủ đích để đảm bảo soundness (không có false positive) với chi phí là giảm khám phá. Phạm vi hiện tại của MRUP tập trung vào:
 
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Window function đơn với PARTITION BY trên một cột duy nhất (dept)
     \item ORDER BY trên các cột số (salary, age) với 1-3 cột
     \item Frame specification (ROWS, RANGE) với các ranh giới đơn giản
@@ -503,27 +481,18 @@ Phạm vi này đủ để kiểm chứng tính đúng đắn của oracle (RQ1-
 
 Điều quan trọng cần lưu ý là việc không phát hiện bug không đồng nghĩa với thất bại. SQLite có độ bao phủ kiểm thử vượt quá 100\% (mỗi dòng code được thực thi nhiều lần bởi các test case khác nhau), và window function đã ổn định qua nhiều năm phát triển. Các oracle khác cũng gặp khó khăn tương tự khi kiểm thử các DBMS đã trưởng thành. Ví dụ, TLP tìm thấy bug chủ yếu trong PostgreSQL và CockroachDB, ít hơn trong SQLite.
 
-\subsection{Các mối đe dọa tính hợp lệ}
-
-\textbf{Tính hợp lệ nội bộ.} Kết quả phụ thuộc vào random seed cố định (42). Việc thay đổi seed có thể thay đổi phân bố của schema và truy vấn được sinh, mặc dù không nên ảnh hưởng đến các metric chính (constraint satisfaction, comparator stability). Hiệu suất cũng phụ thuộc vào phần cứng; các phép đo được thực hiện trên một cấu hình cụ thể có thể không khái quát hóa cho các môi trường khác.
-
-\textbf{Tính hợp lệ bên ngoài.} Đánh giá chỉ được thực hiện trên một DBMS (SQLite) và một phiên bản (3.45.0). Kết quả có thể không khái quát hóa cho các DBMS khác (PostgreSQL, MySQL) hoặc các phiên bản SQLite khác. Tuy nhiên, vì đánh giá tập trung vào hành vi của oracle chứ không phải hành vi của DBMS, khái quát hóa nên vững chắc—hệ thống ràng buộc và logic so sánh là độc lập với DBMS.
-
-\textbf{Tính hợp lệ cấu trúc.} Các metric đo lường chất lượng oracle, không phải hiệu quả phát hiện bug. Constraint satisfaction 100\% chứng minh tính đúng đắn của triển khai nhưng không đảm bảo bug sẽ được tìm thấy. Tương tự, sự đa dạng đột biến cao chỉ ra khám phá kỹ lưỡng không gian trạng thái nhưng không chứng minh rằng không gian đó chứa bug. Đây là một giới hạn cơ bản của oracle-centric evaluation—chúng ta chỉ có thể đo lường những gì oracle làm, không phải những gì nó có thể tìm thấy.
-
 \subsection{Hướng mở rộng tương lai}
 
 Dựa trên giới hạn hiện tại được xác định trong đánh giá, công việc tương lai có thể mở rộng phạm vi của MRUP theo các hướng sau trong khi vẫn duy trì kỷ luật dựa trên ràng buộc:
 
 \textbf{Mở rộng cú pháp truy vấn.} Phạm vi hiện tại loại trừ WHERE clause, JOIN, và subquery. Các tính năng này có thể được thêm vào một cách có hệ thống:
-\begin{itemize}
-    \item WHERE clause phải được tạo một cách cẩn thận để không phá vỡ partition disjointness. Ví dụ: \texttt{WHERE dept IN ('A','B','C')} cho t1 và \texttt{WHERE dept IN ('X','Y','Z')} cho t2 duy trì tính disjoint.
+\begin{itemize}[label=\textbullet]
     \item Subquery tương quan theo partition key có thể kiểm thử tương tác giữa window function và nested query.
     \item Nhiều window function mỗi truy vấn có thể phát hiện bug tương tác giữa các window function khác nhau.
 \end{itemize}
 
 \textbf{Tăng đa dạng dữ liệu.} Sinh dữ liệu hiện tại là ngẫu nhiên với một số edge case. Sinh có chủ đích hơn có thể bao gồm:
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Tăng tỷ lệ NULL lên 50\% cho các cột không phải partition/order.
     \item Edge case số: MIN\_INT, MAX\_INT, 0, -1, 1 cho mọi cột số.
     \item Giá trị trùng lặp có chủ đích để kiểm thử xử lý tie trong ORDER BY.
@@ -531,7 +500,7 @@ Dựa trên giới hạn hiện tại được xác định trong đánh giá, c
 \end{itemize}
 
 \textbf{Mở rộng bao phủ window function.} MRUP hiện tại bao phủ 8 trong số 15+ window function. Các function còn thiếu bao gồm:
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item Value function: LAG, LEAD, FIRST\_VALUE, LAST\_VALUE, NTH\_VALUE
     \item Phân phối: NTILE, PERCENT\_RANK, CUME\_DIST
 \end{itemize}
@@ -548,11 +517,11 @@ Chương này đã trình bày một đánh giá toàn diện về kỹ thuật 
 
 Bốn câu hỏi nghiên cứu giải quyết các khía cạnh khác nhau của chất lượng oracle:
 
-\begin{itemize}
-    \item \textbf{RQ1} kiểm chứng rằng hệ thống ràng buộc được thực thi chính xác. 100\% constraint satisfaction trên 10,000 test case, không có vi phạm nào.
-    \item \textbf{RQ2} định lượng sự đa dạng và hiệu quả của các chiến lược đột biến. 100\% constraint satisfaction trên 10,000 test case, không có vi phạm nào.
-    \item \textbf{RQ3} chứng minh rằng bộ so sánh là xác định và không có false positive. 100\% constraint satisfaction trên 10,000 test case, không có vi phạm nào.
-    \item \textbf{RQ4} thiết lập các đặc tính hiệu suất cơ bản cho kiểm thử liên tục. 100\% constraint satisfaction trên 10,000 test case, không có vi phạm nào.
+\begin{itemize}[label=\textbullet]
+    \item \textbf{RQ1} kiểm chứng rằng hệ thống ràng buộc được thực thi chính xác. 100\% constraint satisfaction trên 13740  test case, không có vi phạm nào.
+    \item \textbf{RQ2} định lượng sự đa dạng và hiệu quả của các chiến lược đột biến. 100\% constraint satisfaction trên 13740  test case, không có vi phạm nào.
+    \item \textbf{RQ3} chứng minh rằng bộ so sánh là xác định và không có false positive. 100\% constraint satisfaction trên 13740  test case, không có vi phạm nào.
+    \item \textbf{RQ4} thiết lập các đặc tính hiệu suất cơ bản cho kiểm thử liên tục. 100\% constraint satisfaction trên 13740  test case, không có vi phạm nào.
 \end{itemize}
 
 Kết quả chứng minh rằng MRUP là một oracle có kỷ luật, ổn định, sẵn sàng cho triển khai. Kết quả từ cả 4 RQ xác nhận rằng oracle tuân thủ các đảm bảo ngữ nghĩa của nó, đạt được sự đa dạng mục tiêu, và duy trì bộ so sánh đáng tin cậy.

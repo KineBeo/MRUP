@@ -2,6 +2,7 @@
 \usepackage{times} 
 % \usepackage{multibib}
 \usepackage{lipsum}
+\usepackage{enumitem}
 \usepackage{fancyvrb}
 \usepackage{appendix}
 \usepackage[shortlabels]{enumitem}
@@ -12,8 +13,20 @@
 \usepackage{afterpage}
 \usepackage{mathtools} %Fixes/improves amsmath
 \usepackage{setspace}
-\usepackage[utf8]{vietnam} 
+\usepackage[utf8]{vietnam}
 \usepackage{amstext, amsmath,latexsym,amsbsy,amssymb, amssymb,amsthm,amsfonts,multicol, nccmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+  basicstyle=\ttfamily,
+  keywordstyle=\color{blue},
+  commentstyle=\color{green!60!black},
+  stringstyle=\color{red},
+  frame=single,
+  breaklines=true,
+  showstringspaces=false,
+  captionpos=b
+}
 \usepackage[left=3cm,right=2cm,top=2.5cm,bottom=3cm,footskip=40pt]{geometry}
 \usepackage{pdflscape}
 \usepackage{apacite}
@@ -114,6 +127,49 @@
   xleftmargin=2.5em
 }
 
+% --- UNIVERSAL PREAMBLE BLOCK ---
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2cm, right=2cm]{geometry}
+\usepackage[vietnamese, bidi=basic, provide=*]{babel}
+
+\babelprovide[import, onchar=ids fonts]{vietnamese}
+\babelprovide[import, onchar=ids fonts]{english}
+
+% --- PACKAGES FOR CODE BOXES ---
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+
+% Định nghĩa màu sắc cho code
+\definecolor{codebg}{RGB}{245, 245, 245}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+% Cấu hình listings
+\lstset{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegray},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=none,                    
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{black},
+    framerule=0.5pt,
+    framesep=5pt,
+    language=SQL,
+    xleftmargin=3em 
+}
+
 \begin{document}
 \fontsize{13}{15.5}\selectfont
 
@@ -124,14 +180,13 @@
 \pagenumbering{gobble}
 \input{cover/Biatrong}
 \newpage
-\def\baselinestretch{1.3}
+\def\baselinestretch{1.2}
 \pagestyle{plain}
 \pagenumbering{gobble}
 \input{cover/loicamdoan}
 \newpage
 \input{cover/loicamon} 
 \newpage
-\input{cover/tomtat}
 \newpage
 \pagenumbering{roman}
 
@@ -189,133 +244,44 @@
 \addcontentsline{toc}{chapter}{{TÀI LIỆU THAM KHẢO}}
 \renewcommand{\refname}{Literary works}
 \begin{thebibliography}{xx}
-	\section*{Tiếng Anh}	
-	
-	\harvarditem[Rigger \harvardand\ Su]{Rigger \harvardand\ Su}{2020}{Rigger2020}
-	Manuel Rigger \harvardand\ Zhendong Su, ``{Testing Database Engines via Pivoted Query Synthesis}'',
-	{\em 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI 20)}, 2020, pp.~667--682.
-	
-	\harvarditem[Rigger \harvardand\ Su]{Rigger \harvardand\ Su}{2020}{Rigger2020TLP}
-	Manuel Rigger \harvardand\ Zhendong Su, ``{Detecting Optimization Bugs in Database Engines via Non-Optimizing Reference Engine Construction}'',
-	{\em Proceedings of the 28th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Foundations of Software Engineering (ESEC/FSE)}, 2020, pp.~1140--1152.
-	
-	\harvarditem[Rigger \harvardand\ Su]{Rigger \harvardand\ Su}{2020}{Rigger2020NoREC}
-	Manuel Rigger \harvardand\ Zhendong Su, ``{Finding Bugs in Database Systems via Query Partitioning}'',
-	{\em Proceedings of the ACM on Programming Languages}, vol.~4, no.~OOPSLA, 2020, pp.~1--30.
-	
-	\harvarditem[Rigger \harvardand\ Su]{Rigger \harvardand\ Su}{2020}{Rigger2020SQLancer}
-	Manuel Rigger \harvardand\ Zhendong Su, ``{SQLancer: Finding Logic Bugs in Database Management Systems}'',
-	{\em SQLancer GitHub Repository}, 2020.
-	\newline{[Online]. Available: $https://github.com/sqlancer/sqlancer$}
-	
-	\harvarditem[Bloessl et~al.]{Bloessl, Segata, Sommer \harvardand\
-		Dressler}{2013}{Bloessl2013}
-	B. Bloessl, M. Segata, C. Sommer \harvardand\ F. Dressler, ``An IEEE802.11a/g/p OFDM receiver for GNU radio'',
-	{\em SRIF 2013 - Proceedings of the 2nd, 2013 ACM SIGCOMM Workshop on
-	Software Radio Implementation Forum}, 2013, pp.~9--15.
 
-	\harvarditem{BogdanDIA}{2015}{BogdanDIA2015}
-	BogdanDIA  , ``{DVB-T implementation in gnuradio}'', 2015.
-	\newline{[Online]. Available: $https://github.com/BogdanDIA/gr-dvbt$}
+	\harvarditem[Rigger and Su]{Rigger and Su}{2020a}{Rigger2020a}
+	Manuel Rigger and Zhendong Su. 2020a. Detecting Optimization Bugs in Database Engines via Non-Optimizing Reference
+Engine Construction. In Proceedings of the 2020 28th ACM Joint Meeting on European Software Engineering Conference
+and Symposium on the Foundations of Software Engineering (Sacramento, California, United States) (ESEC/FSE 2020).
 
-	\harvarditem[Bergstrom et~al.]{Bergstrom, Chuprun, Gifford \harvardand\
-	Maalouli}{2002}{Bergstrom2002}
-	C. Bergstrom, S. Chuprun, S. Gifford, \harvardand\ G. Maalouli
-	, ``{Software defined radio (SDR)
-	special military applications}'', {\em MILCOM 2002. Proceedings},
-	{vol.~1}, 2002, pp.~383--388.
-	
-	\harvarditem{Bellini \harvardand\ Tosi}{1907}{Bellini1907}
-	E. Bellini \harvardand\ A. Tosi,
-	``{A directive system of wireless telegraphy}'', {\em Proceedings of the
-		Physical Society of London}, vol.~21, no.~1, 1907, pp.~305--328.
-	
-	\harvarditem[Gomez-Miguelez et~al.]{Gomez-Miguelez, Garcia-Saavedra, Sutton,
-		Serrano, Cano \harvardand\ Leith}{2016}{Gomez-Miguelez2016}
-	I. Gomez-Miguelez, A. Garcia-Saavedra, Paul D. Sutton, P. Serrano, C. Cano
-	\harvardand\ Douglas J. Leith,
-	``{srsLTE: An open-source platform for LTE evolution and experimentation}'',
-	{\em Proceedings of the Annual International Conference on Mobile Computing
-		and Networking, MOBICOM}, 2016, pp.~25--32.
-	
-	\harvarditem{Ziskind \harvardand\ Wax}{1988}{Ziskind1988}
-	I. Ziskind \harvardand\ M. Wax,
-	``{Maximum Likelihood Localization of Multiple Sources by Alternating
-		Projection}'', {\em IEEE Transactions on Acoustics, Speech, and Signal
-		Processing}, {vol.~36}, no.~10, 1988, pp.~1553--1560.
-	
-	\harvarditem{Capon}{1969}{Capon2009}
-	J. Capon, ``{High-resolution frequency-wavenumber spectrum analysis}'', 
-	{\em Proceedings of the IEEE}, {vol.~57}, no.~8, 1969, pp.~1408--1418.
-	
-	\harvarditem{Liberti \harvardand\ Rappaport}{1999}{Liberti1999}
-	Joseph C. Liberti \harvardand\ Theodore S. Rappaport, {\em Smart antennas for wireless communications: IS-95 and third generation CDMA applications}, 
-	{Prentice Hall PTR}, 1999, pp.~134--134.
-	
-	\harvarditem{{Van Rijsbergen}}{n.d.}{VanRijsbergen}
-	Kenneth van Rijsbergen, ``{The
-		effectiveness of a homemade IMSI catcher build with YateBTS and a BladeRF}'', {\em Semanticscholar}, 2016.
-	
-	\harvarditem{{\em {KerberosSDR Demo software for direction finding and passive
-				radar}}}{2019}{kerberos}
-	{KerberosSDR: ``Demo software for direction finding and passive radar''}, 2019.
-	\newline{[Online]. Available: $https://github.com/rtlsdrblog/kerberossdr$}
-	
-	\harvarditem{Nentwig}{2016}{Nentwig2016}
-	M. Nentwig, ``{Delay estimation by FFT}'', {\em DSPRelated}, 2016.
-	
-	\harvarditem{{\em {DC offset and IQ Imbalance Correction {\textperiodcentered}
-				Nuand/bladeRF Wiki}}}{n.d.}{Dccali}
-	{ {Nuand/bladeRF, ``DC offset and IQ Imbalance Correction''.}} 
-	\newline{[Online]. Available: $https://github.com/Nuand/bladeRF/wiki/DC-offset-and-IQ-Imbalance-Correction$}
-	
-	\harvarditem{{\em {Nuand: kalibrate-bladeRF}}}{2010}{kali}
-	{Nuand/bladeRF: ``kalibrate-bladeRF''}, 2010.
-	\newline{[Online]. Available: $https://github.com/Nuand/kalibrate-bladeRF$}
-	
-	\harvarditem[Kavitha et~al.]{Kavitha, {Meera Mohan}, Surya, Gandhiraj
-		\harvardand\ Soman}{2015}{Kavitha2015}
-	P. Kavitha, K. Meera Mohan, R. Surya, R. Gandhiraj \harvardand\ K.P. Soman, {``Implementation of CDMA in GNU radio''}, {\em Procedia Computer Science}, vol.~46, 2015, pp.~981--988.
-	
-	\harvarditem{Krysik}{2016}{multi-rtl}
-	P. Krysik, ``{Multi-channel receiver with use of RTL-SDR dongles}'', 2016.
-	\newline{[Online]. Available: $https://github.com/ptrkrysik/multi-rtl$}
-	
-	\harvarditem{Nehorai \harvardand\ A.}{1989}{Transactions1989}
-	P. Stoica \harvardand\ A. Nehorai,
-	``{MUSIC, Maximum Likelihood, and Cramer-Rao Bound}'', {\em IEEE Transactions
-		on Acoustics, Speech, and Signal Processing}, {vol.~37}, no.~5, 1989.
-	
-	\harvarditem{{\em {PyBOMBS (Python Build Overlay Managed Bundle
-				System)}}}{n.d.}{PyBombs}
-	PyBOMBS: ``Python Build Overlay Managed Bundle System''.
-	\newline{[Online]. Available: $https://github.com/gnuradio/pybombs$}
-	
-	\harvarditem{Bracewell}{1978}{Bracewell1978}
-	Ronald N. Bracewell, {\em {The Fourier Transform and Its Applications}}, McGraw-Hill, 1978, pp.~46 and 243.
-	
-	\harvarditem{{R. I. Lackey and D. W. Upmal}}{1995}{Fakhrian2012}
-	{R. I. Lackey and D. W. Upmal},
-	``{Speakeasy: The Military Software Radio}'', {\em IEEE Communications
-		Magazine}, {vol.~33}, no.~5, 1995, pp.~56--61.
-	
-	\harvarditem{Keen}{1922}{Darwin1895}
-	R. Keen, {\em {Direction and Position Finding by Wireless}}, 1922.
-	
-	\harvarditem{Schmidt}{1986}{Schmidt2009a}
-	R. Schmidt, ``{Multiple emitter
-		location and signal parameter estimation}'', {\em IEEE Transactions on Antennas and Propagation}, vol.~34, no.~3, 1986, pp~276--280.
-	
-	\harvarditem[Whiting et~al.]{Whiting, Sorensen, Moon \harvardand\
-		Gunther}{2018}{Whiting2018}
-	S. Whiting, D. Sorensen, T. K. Moon \harvardand\ J. H. Gunther,
-	 ``{Time and frequency corrections in
-		a distributed radio network}'', {\em 2017 51st Asilomar Conference on Signals, Systems, and Computers}, 2017, pp.~1123--1126.
-	
-	\harvarditem{{Travis F Collins}}{n.d.}{TravisFCollins}
-	 Srikanth Pagadarai, Travis Collins and Alexander M. Wyglinski, ``{Phase
-		Synchronization Capability of TwinRX Daughterboards and DoA Estimation}'', {\em Ettus Research}, 2016, pp.~1--12.
-	
+	\harvarditem[Rigger and Su]{Rigger and Su}{2020b}{Rigger2020b}
+	Manuel Rigger and Zhendong Su. 2020b. OOPSLA 20 Artifact for "Finding Bugs in Database Systems via Query Partitioning". https://doi.org/10.5281/zenodo.4032401
+
+	\harvarditem[Rigger and Su]{Rigger and Su}{2020c}{Rigger2020c}
+	Manuel Rigger and Zhendong Su. 2020c. Testing Database Engines via Pivoted Query Synthesis. In 14th USENIX Symposium
+on Operating Systems Design and Implementation (OSDI 20). USENIX Association, Banff, Alberta. https://www.usenix.org/conference/osdi20/presentation/rigger
+
+	\harvarditem[Jiang and Su]{Jiang and Su}{2024}{Jiang2024}
+	Zu-Ming Jiang and Zhendong Su. Detecting Logic Bugs in Database Engines via Equivalent Expression Transformation. ETH Zurich.
+
+	\harvarditem{SQLite}{2024}{SQLite}
+	SQLite. https://www.sqlite.org/index.html
+
+	\harvarditem{MySQL}{2024}{MySQL}
+	MySQL. https://www.mysql.com/.
+
+	\harvarditem{SQLancer}{2024}{SQLancer}
+	SQLancer. https://github.com/sqlancer/sqlancer.
+
+	\harvarditem{PostgreSQL}{2024}{PostgreSQL}
+	PostgreSQL. https://www.postgresql.org/.
+
+	\harvarditem{SQLite Window Functions}{2024}{SQLiteWindow}
+	Sqlite Window Functions https://sqlite.org/windowfunctions.html
+
+	\harvarditem[Gao et al.]{Gao, Liu, Cui, Li, Zhang, Wei, and Zhao}{2023}{Gao2023}
+	A Comprehensive Survey on Database Management System Fuzzing:
+Techniques, Taxonomy and Experimental Comparison
+XIYUE GAO, ZHUANG LIU, and JIANGTAO CUI, Xidian University, China
+HUI LI∗, Xidian University, China and Shanghai Yunxi Technology Co., Ltd., China
+HUI ZHANG, KEWEI WEI, and KANKAN ZHAO, Inspur, China https://arxiv.org/pdf/2311.06728
+
 \end{thebibliography}
 
 \end{document}

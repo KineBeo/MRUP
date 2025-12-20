@@ -14,13 +14,15 @@
 
 {Cú pháp chung của Window Function:}
 \vspace{-0.6em}
-\begin{SQLSyntax}
+\begin{center}
+\begin{lstlisting} 
 function_name(expression) OVER (
   [PARTITION BY column_list]
   [ORDER BY column_list]
   [frame_clause]
 )
-\end{SQLSyntax}
+\end{lstlisting} 
+\end{center}
 \vspace{-0.6em}
 Cú pháp tổng quát bao gồm tên hàm và mệnh đề OVER chứa window specification với ba thành phần: PARTITION BY chia dữ liệu thành các phân vùng độc lập, ORDER BY xác định thứ tự các hàng, và frame clause xác định tập hợp hàng được sử dụng. Với bảng dữ liệu employees như sau, ta có thể so sánh kết quả của truy vấn GROUP BY và window function:
 
@@ -140,24 +142,43 @@ Carol & 4000 & 4 & 4 \\ \hline
 
 \subsection{Phân loại Window Functions}
 
-\noindent Window functions được chia thành ba nhóm: ranking functions, aggregate window functions, và value functions.
+\noindent Window functions có thể được chia thành ba nhóm chính: \textit{ranking functions}, \textit{aggregate window functions} và \textit{value functions}.
+
+\textit{Ranking functions} (ROW\_NUMBER, RANK, DENSE\_RANK) dùng để xác định thứ hạng của các dòng trong mỗi partition. ROW\_NUMBER đánh số liên tục, RANK cho phép xuất hiện khoảng trống khi có giá trị trùng nhau, trong khi DENSE\_RANK vẫn đảm bảo thứ hạng liên tiếp. [Bảng~\ref{tab:ranking_functions}].
+
+\textit{Aggregate window functions} (SUM, AVG, COUNT, MIN, MAX) thực hiện phép tổng hợp trên một cửa sổ dữ liệu. Khác với GROUP BY, các hàm này không làm giảm số dòng của kết quả và có thể tính toán trên toàn bộ partition hoặc một frame cụ thể. [Bảng~\ref{tab:aggregate_functions}].
+
+\textit{Value functions} (LAG, LEAD, FIRST\_VALUE, LAST\_VALUE) cho phép truy cập giá trị của các dòng khác trong cùng partition, hỗ trợ phân tích dữ liệu theo chiều thời gian hoặc so sánh giữa các dòng mà không cần sử dụng self-join. [Bảng~\ref{tab:value_aggregate_functions}]y.
 
 \begin{table}[H]
     \centering
     \small
-    \begin{tabular}{|l|l|r|r|r|r|}
+    \begin{tabular}{|l|r|r|r|r|}
 \hline
-\textbf{Nhóm} & \textbf{Hàm} & \textbf{salary} & \textbf{ROW\_NUM} & \textbf{RANK} & \textbf{DENSE\_RANK} \\ \hline
-\multirow{4}{*}{Ranking} & Bob & 6000 & 1 & 1 & 1 \\
- & Alice & 5000 & 2 & 2 & 2 \\
- & Dave & 5000 & 3 & 2 & 2 \\
- & Carol & 4000 & 4 & 4 & 3 \\ \hline
+\textbf{name} & \textbf{salary} & \textbf{ROW\_NUMBER} & \textbf{RANK} & \textbf{DENSE\_RANK} \\ \hline
+Bob & 6000 & 1 & 1 & 1 \\
+Alice & 5000 & 2 & 2 & 2 \\
+Dave & 5000 & 3 & 2 & 2 \\
+Carol & 4000 & 4 & 4 & 3 \\ \hline
 \end{tabular}
     \caption{Ranking Functions: ROW\_NUMBER liên tục, RANK có gap, DENSE\_RANK không gap}
     \label{tab:ranking_functions}
 \end{table}
 
-Ranking functions không cho phép frame specification trong SQLite (ràng buộc C3 của MRUP Oracle). Aggregate functions (SUM, AVG, COUNT, MIN, MAX) có thể dùng frame specification để tính trên frame thay vì toàn bộ partition. Value functions (LAG, LEAD, FIRST\_VALUE, LAST\_VALUE) cho phép truy cập giá trị các hàng khác mà không cần self-join.
+\begin{table}[H]
+	\centering
+    \small
+    \begin{tabular}{|l|l|r|r|}
+\hline
+\textbf{name} & \textbf{dept} & \textbf{salary} & \textbf{sum\_dept} \\ \hline
+Alice & IT & 5000 & 18000 \\
+Bob & IT & 6000 & 18000 \\
+Carol & HR & 4000 & 9000 \\
+Dave & HR & 5000 & 9000 \\ \hline
+\end{tabular}
+    \caption{Ví dụ Aggregate Window Function: SUM(salary) OVER (PARTITION BY dept)}
+    \label{tab:aggregate_functions}
+\end{table}
 
 \begin{table}[H]
 	\centering
@@ -173,6 +194,7 @@ Apr & 1300 & 1100 & +200 & 4600 \\ \hline
     \caption{Value function LAG() và Aggregate function SUM() với UNBOUNDED PRECEDING}
     \label{tab:value_aggregate_functions}
 \end{table}
+
 
 \section{SQLite và Window Functions}
 
@@ -221,24 +243,3 @@ Frame Exclusions & 4 & EXCLUDE CURRENT ROW, EXCLUDE GROUP... \\ \hline
 \end{table}
 
 Tính không xác định (non-determinism) xảy ra khi ORDER BY không đủ xác định thứ tự duy nhất, hoặc khi sử dụng RANDOM(), CURRENT\_TIMESTAMP. NULL handling không rõ ràng (thiếu NULLS FIRST/LAST) cũng gây kết quả không nhất quán.
-
-\subsection{Hạn chế của phương pháp kiểm thử hiện tại}
-
-\noindent Các oracle như PQS, TLP, NoREC tập trung vào WHERE, JOIN, GROUP BY nhưng không chuyên biệt cho window functions. Chúng không khai thác partition locality (kết quả mỗi partition độc lập), không kiểm thử đầy đủ frame specifications phức tạp, không chú trọng ordering semantics, và không kiểm thử tương tác giữa nhiều window functions.
-
-\begin{table}[H]
-    \centering
-    \small
-    \begin{tabular}{|l|p{10cm}|}
-\hline
-\textbf{Hạn chế} & \textbf{Mô tả} \\ \hline
-Partition Locality & Không khai thác tính chất kết quả mỗi partition độc lập \\ \hline
-Frame Specification & Không kiểm thử đầy đủ ROWS/RANGE với boundaries, exclusions \\ \hline
-Ordering Semantics & Không chú trọng ORDER BY và NULL handling trong window functions \\ \hline
-Multiple Windows & Không kiểm thử tương tác nhiều window functions trong cùng query \\ \hline
-\end{tabular}
-    \caption{Hạn chế của các phương pháp kiểm thử DBMS hiện tại với Window Functions}
-    \label{tab:testing_limitations}
-\end{table}
-
-Đây là động lực phát triển MRUP Oracle, một test oracle chuyên biệt khai thác partition locality và tập trung vào đặc thù của window functions.

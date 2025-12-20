@@ -51,7 +51,8 @@ MRUP Oracle hoạt động theo sáu bước chính. Bước 1 tạo hai bảng 
 
 Xét hai bảng với partition values disjoint:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em] 
+\begin{center}
+\begin{lstlisting}
 CREATE TABLE t1 (dept TEXT, salary INTEGER, age INTEGER);
 INSERT INTO t1 VALUES ('Engineering', 80000, 30);
 INSERT INTO t1 VALUES ('Engineering', 90000, 35);
@@ -64,19 +65,23 @@ INSERT INTO t2 VALUES ('HR', 68000, 29);
 
 CREATE TABLE t_union AS 
 SELECT * FROM t1 UNION ALL SELECT * FROM t2;
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 Window function query:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em] 
+\begin{center}
+\begin{lstlisting} 
 SELECT dept, salary, 
        RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS wf
 FROM table_name;
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 Thực thi trên ba bảng:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]  
+\begin{center}
+\begin{lstlisting} 
 -- H(t1): 3 rows
    {('Engineering', 90000, 1), ('Engineering', 80000, 2), 
    ('Sales', 70000, 1)}
@@ -86,8 +91,8 @@ Thực thi trên ba bảng:
 
 -- H(t_union): 6 rows
    Should equal H(t1) UNION ALL H(t2)
-\end{Verbatim}
-
+\end{lstlisting}
+\end{center}
 Nếu DBMS trả về kết quả khác (ví dụ: 5 rows thay vì 6 rows), một lỗi logic được phát hiện.
 
 \section{Thiết kế chi tiết}
@@ -108,7 +113,9 @@ Khi thực hiện window function query $H$ trên $t_1 \cup t_2$, DBMS sẽ phâ
 
 Quan hệ MRUP dựa trên partition locality. Nếu không có PARTITION BY, toàn bộ bảng là một partition duy nhất, và quan hệ MRUP không còn đúng. Xét ví dụ vi phạm:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+
+\begin{center}
+\begin{lstlisting} 
 CREATE TABLE t1 (c0 INTEGER);
 INSERT INTO t1 VALUES (10), (20);
 
@@ -123,7 +130,8 @@ SELECT ROW_NUMBER() OVER (ORDER BY c0) AS wf FROM t2;
 
 SELECT ROW_NUMBER() OVER (ORDER BY c0) AS wf FROM t_union;
 -- {1, 2, 3, 4, 5}  ✗ NOT EQUAL to {1, 2} ∪ {1, 2, 3}
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 Không có PARTITION BY, ROW\_NUMBER tính toán trên toàn bộ bảng, vi phạm quan hệ MRUP.
 
@@ -135,18 +143,21 @@ Không có PARTITION BY, ROW\_NUMBER tính toán trên toàn bộ bảng, vi ph�
 
 Nếu ORDER BY không đủ để xác định thứ tự duy nhất, kết quả có thể khác nhau giữa các lần chạy (non-determinism), gây false positives. MRUP Oracle đảm bảo tính deterministic bằng cách sử dụng multiple ORDER BY columns với tie-breakers và explicit NULLS handling. Ví dụ:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em] 
+\begin{center}
+\begin{lstlisting} 
 -- Deterministic ORDER BY
 ORDER BY salary DESC NULLS LAST, age ASC NULLS FIRST
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 Khi có nhiều hàng cùng salary, age được dùng làm tie-breaker. NULLS LAST và NULLS FIRST đảm bảo vị trí của NULL được xác định rõ ràng.
 
 \subsubsection{C3: Không có FRAME cho ranking functions}
 
-SQLite không cho phép frame specification với ROW\_NUMBER, RANK, DENSE\_RANK. Lý do là các hàm này về bản chất đã hoạt động trên toàn bộ partition theo ORDER BY, việc thêm frame không có ý nghĩa. Ví dụ vi phạm:
+SQLite không cho phép frame specification với ROW\_NUMBER, RANK, DENSE\_RANK [https://sqlite.org/windowfunctions.html]. Lý do là các hàm này về bản chất đã hoạt động trên toàn bộ partition theo ORDER BY, việc thêm frame không có ý nghĩa. Ví dụ vi phạm:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em] 
+\begin{center}
+\begin{lstlisting} 
 CREATE TABLE t (dept TEXT, salary INTEGER);
 INSERT INTO t VALUES ('IT', 5000), ('IT', 6000);
 
@@ -156,15 +167,17 @@ SELECT ROW_NUMBER() OVER (
     ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
 ) FROM t;
 -- Error: frame not allowed with ROW_NUMBER
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 MRUP Oracle không tạo frame specification khi sử dụng ranking functions.
 
 \subsubsection{C4: RANGE chỉ với single ORDER BY}
 
-SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột. Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Ví dụ vi phạm:
+SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột [https://sqlite.org/windowfunctions.html]. Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Ví dụ vi phạm:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em] 
+\begin{center}
+\begin{lstlisting} 
 CREATE TABLE t (dept TEXT, salary INTEGER, age INTEGER);
 INSERT INTO t VALUES ('IT', 5000, 30), ('IT', 6000, 35);
 
@@ -174,7 +187,8 @@ SELECT SUM(salary) OVER (
     RANGE BETWEEN 1000 PRECEDING AND CURRENT ROW
 ) FROM t;
 -- Error: RANGE with multiple ORDER BY not supported
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 MRUP Oracle đảm bảo nếu sử dụng RANGE frame thì ORDER BY chỉ có một cột duy nhất.
 
@@ -186,7 +200,8 @@ Các hàm non-deterministic (RANDOM(), CURRENT\_TIMESTAMP) cho kết quả khác
 
 MRUP Oracle tạo hai bảng $t_1$ và $t_2$ với schema biến đổi nhưng luôn đảm bảo partition disjointness:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=1.5em]
+\begin{center}
+\begin{lstlisting} 
 CREATE TABLE t1 (
     dept TEXT,           -- partition key, 
                          from {Engineering, Sales, Finance}
@@ -206,7 +221,8 @@ CREATE TABLE t2 (
     c1 TYPE,             -- same type as t1
     ...                  -- same schema as t1
 );
-\end{Verbatim}
+\end{lstlisting}
+\end{center}
 
 Mỗi bảng có 3-8 hàng được tạo ngẫu nhiên. Tổng số cột: 3-7. Cột dept đảm bảo partition disjointness với hai tập giá trị rời rạc. Các cột salary và age được sử dụng cho ORDER BY. Các cột bổ sung (c0, c1, ...) có 30\% chance NULL và 15\% chance edge cases (MIN\_INT, MAX\_INT, 0, -1, 1).
 
@@ -220,7 +236,8 @@ MRUP Oracle áp dụng mutations trên window specification để tăng diversit
 
 Ví dụ mutation:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center}
+\begin{lstlisting} 
 -- Original
 SUM(salary) OVER (PARTITION BY dept ORDER BY age)
 
@@ -237,7 +254,9 @@ SUM(salary) OVER (
     ORDER BY salary
     RANGE BETWEEN 1000 PRECEDING AND 1000 FOLLOWING
 )
-\end{Verbatim}
+\end{lstlisting} 
+\end{center}
+
 
 \subsection{Identity mutations (Stage 1, 98\% rate)}
 
@@ -245,28 +264,30 @@ Identity mutations được áp dụng vào argument của window function, khô
 
 \textbf{Nguyên tắc:}
 \begin{itemize}
-    \item ✓ VALID: \texttt{SUM(c1 + 0) OVER (...)}
-    \item ✗ INVALID: \texttt{(SUM(c1) OVER (...)) + 0}
+    \item \ding{51} \textbf{VALID}: \texttt{SUM(c1 + 0) OVER (...)}
+    \item \ding{55} \textbf{INVALID}: \texttt{(SUM(c1) OVER (...)) + 0}
 \end{itemize}
 
 Identity mutations bảo toàn giá trị numeric (hoặc trong epsilon tolerance cho REAL) trong khi thay đổi cách optimizer evaluate expression. Các pattern bao gồm:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center}
+\begin{lstlisting} 
 -- Addition identity
-SUM(c1) → SUM(c1 + 0)
+SUM(c1) -> SUM(c1 + 0)
 
 -- Multiplication identity
-AVG(salary) → AVG(salary * 1)
+AVG(salary) -> AVG(salary * 1)
 
 -- Unary identity
-COUNT(c0) → COUNT(+c0)
+COUNT(c0) -> COUNT(+c0)
 
 -- COALESCE identity
-MIN(age) → MIN(COALESCE(age, age))
+MIN(age) -> MIN(COALESCE(age, age))
 
 -- CAST identity
-MAX(c1) → MAX(CAST(c1 AS INTEGER))
-\end{Verbatim}
+MAX(c1) -> MAX(CAST(c1 AS INTEGER))
+\end{lstlisting} 
+\end{center}
 
 Identity mutations được skip cho ranking functions (ROW\_NUMBER, RANK, DENSE\_RANK) vì chúng không có argument để mutate.
 
@@ -278,7 +299,8 @@ Dựa trên EET và các bugs thực tế trong MySQL, MRUP Oracle áp dụng n�
 
 Wrap window function trong CASE WHEN với constant conditions để kiểm tra optimizer có loại bỏ dead branches đúng không:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center}
+\begin{lstlisting} 
 -- Original
 SELECT dept, salary, 
        ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary) AS wf
@@ -290,58 +312,66 @@ SELECT dept, salary,
            ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
        ELSE NULL END AS wf
 FROM t;
-\end{Verbatim}
+\end{lstlisting} 
+\end{center}
 
 \subsubsection{Strategy 2: Window Function in WHEN}
 
 Sử dụng window function trong WHEN condition để kiểm tra evaluation window function trong conditions:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center}
+\begin{lstlisting} 
 SELECT dept, salary,
        CASE WHEN ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary) > 1
             THEN SUM(salary) OVER (PARTITION BY dept)
        ELSE 0 END AS wf
 FROM t;
-\end{Verbatim}
+\end{lstlisting} 
+\end{center}
 
 \subsubsection{Strategy 3: Different Window Functions}
 
 Sử dụng các window functions khác nhau trong THEN và ELSE để kiểm tra việc xử lý nhiều window functions trong một expression:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center}
+\begin{lstlisting} 
 SELECT dept, salary,
        CASE WHEN salary > 70000
             THEN RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
        ELSE DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC)
        END AS wf
 FROM t;
-\end{Verbatim}
+\end{lstlisting} 
+\end{center}
 
 \subsubsection{Strategy 4: Identical Branches}
 
 THEN và ELSE có cùng window function để kiểm tra optimizer có nhận diện và tối ưu hóa identical branches không:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center} 
+\begin{lstlisting} 
 SELECT dept, salary,
        CASE WHEN salary > 70000
             THEN ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
        ELSE ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
        END AS wf
 FROM t;
-\end{Verbatim}
+\end{lstlisting}  
+\end{center}
 
 \subsubsection{Strategy 5: NULL Handling}
 
 Kiểm tra NULL handling trong CASE WHEN:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center} \begin{lstlisting} 
 SELECT dept, salary,
        CASE WHEN salary IS NULL
             THEN 0
        ELSE ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary)
        END AS wf
 FROM t;
-\end{Verbatim}
+\end{lstlisting}  
+\end{center}
 
 \section{Result comparator}
 
@@ -368,7 +398,7 @@ Do window functions không đảm bảo thứ tự toàn cục (chỉ đảm b�
 
 Ví dụ normalization:
 
-\begin{Verbatim} [fontsize=\fontsize{11pt}{13pt}\selectfont, xleftmargin=3em]
+\begin{center} \begin{lstlisting} 
 -- Before normalization (arbitrary global order)
 dept         | salary | wf_result
 -------------|--------|----------
@@ -384,7 +414,7 @@ Engineering  | 90000  | 1
 Engineering  | 80000  | 2
 Marketing    | 75000  | 1
 Sales        | 70000  | 1
-\end{Verbatim}
+\end{lstlisting}  \end{center}
 
 \subsubsection{Layer 3: Per-partition comparison}
 
@@ -449,7 +479,7 @@ MRUP Oracle có ba đóng góp độc đáo so với các oracle trước đó. 
 
 \section{Tổng kết}
 
-Chương này đã trình bày thiết kế và triển khai MRUP Oracle với các điểm chính: động lực phát triển oracle dựa trên hạn chế của các phương pháp hiện tại và tính chất partition locality chưa được khai thác, quan hệ metamorphic MRUP với chứng minh tính đúng đắn, constraint system (C0-C5) đảm bảo soundness và tránh false positives, mutation strategies (window spec và CASE WHEN) dựa trên bugs thực tế, three-layer comparator với partition-aware sorting và type-aware comparison, và kiến trúc modular dễ dàng mở rộng.
+\noindent Chương này đã trình bày thiết kế và triển khai MRUP Oracle với các điểm chính: động lực phát triển oracle dựa trên hạn chế của các phương pháp hiện tại và tính chất partition locality chưa được khai thác, quan hệ metamorphic MRUP với chứng minh tính đúng đắn, constraint system (C0-C5) đảm bảo soundness và tránh false positives, mutation strategies (window spec và CASE WHEN) dựa trên bugs thực tế, three-layer comparator với partition-aware sorting và type-aware comparison, và kiến trúc modular dễ dàng mở rộng.
 
 MRUP Oracle là một test oracle chuyên biệt cho window functions, lấp đầy khoảng trống nghiên cứu mà PQS, TLP, và NoREC chưa giải quyết được. Chương tiếp theo sẽ trình bày các thí nghiệm đánh giá hiệu quả của MRUP Oracle và roadmap cải tiến trong tương lai.
 

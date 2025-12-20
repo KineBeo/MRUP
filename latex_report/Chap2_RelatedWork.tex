@@ -24,8 +24,19 @@
     \caption{Tổng quan cách tiếp cận của PQS}
     \label{fig:pqs_overview}
 \end{figure}
+\vspace{5em}
+{Một ví dụ điển hình là lỗi nghiêm trọng trong SQLite thể hiện như sau:}
 
-Một ví dụ điển hình là lỗi nghiêm trọng trong SQLite khi sử dụng pivot row \texttt{c0=NULL}. Truy vấn chứa mệnh đề \texttt{WHERE c0 IS NOT 1}, và vì \texttt{NULL IS NOT 1} đánh giá là TRUE, hàng NULL được kỳ vọng trong kết quả. Tuy nhiên, do lỗi tối ưu hóa (SQLite sử dụng partial index dựa trên giả định \texttt{c0 IS NOT 1} ngụ ý \texttt{c0 NOT NULL}), hàng NULL bị bỏ qua, dẫn đến kết quả chỉ có \{0\} thay vì \{0, NULL\}.
+\begin{center}
+\begin{lstlisting}[caption={Illustrative example, based on a critical SQLite bug}, label={lst:pqs_example}]
+CREATE TABLE t0 ( c0 );
+CREATE INDEX i0 ON t0 (1) WHERE c0 NOT NULL;
+INSERT INTO t0 ( c0 ) VALUES (0), (1), (NULL);
+SELECT c0 FROM t0 WHERE c0 IS NOT 1; -- actual: {0} [BUG] | expected: {0, NULL} 
+\end{lstlisting}
+\end{center}
+
+Truy vấn chứa mệnh đề \texttt{WHERE c0 IS NOT 1}, và vì \texttt{NULL IS NOT 1} đánh giá là TRUE, hàng NULL được kỳ vọng trong kết quả. Tuy nhiên, do lỗi tối ưu hóa (SQLite sử dụng partial index dựa trên giả định \texttt{c0 IS NOT 1} ngụ ý \texttt{c0 NOT NULL}), hàng NULL bị bỏ qua, dẫn đến kết quả chỉ có \{\} thay vì \{0, NULL\}. Cụ thể, với pivot row \texttt{c0=NULL}, vì \texttt{NULL IS NOT 1} đánh giá là TRUE, hàng NULL được kỳ vọng trong kết quả nhưng bị bỏ qua vì SQLite cho rằng \texttt{c0 IS NOT 1} ngụ ý \texttt{c0 NOT NULL}.
 
 \subsubsection{Kết quả và đánh giá}
 
@@ -69,7 +80,10 @@ Tuy nhiên, PQS có những hạn chế đáng kể. Nỗ lực triển khai cao
 
 \subsubsection{Cách tiếp cận}
 
-\noindent Ý tưởng cấp cao của NoREC là so sánh kết quả của phiên bản DBMS có tối ưu hóa với phiên bản không thực hiện tối ưu hóa. Vì việc tắt tối ưu hóa khó khăn, ý tưởng cốt lõi là viết lại truy vấn được tối ưu hóa (optimized query) thành truy vấn mà DBMS không thể tối ưu hóa hiệu quả (unoptimized query). Cụ thể, truy vấn dạng \texttt{SELECT * FROM t0 WHERE φ} được biến đổi thành \texttt{SELECT (φ IS TRUE) FROM t0}. Việc di chuyển mệnh đề WHERE đến sau SELECT khiến DBMS phải truy xuất mọi bản ghi, vô hiệu hóa hầu hết các cơ chế tối ưu hóa.
+\noindent Ý tưởng cấp cao của NoREC là so sánh kết quả của phiên bản DBMS có tối ưu hóa với phiên bản không thực hiện tối ưu hóa. Vì việc tắt tối ưu hóa khó khăn, ý tưởng cốt lõi là viết lại truy vấn được tối ưu hóa (optimized query) thành truy vấn mà DBMS không thể tối ưu hóa hiệu quả (unoptimized query). Cụ thể, truy vấn dạng \texttt{SELECT * FROM t0 WHERE }$\varphi$
+được biến đổi thành
+\texttt{SELECT (}$\varphi$\texttt{ IS TRUE) FROM t0}
+. Việc di chuyển mệnh đề WHERE đến sau SELECT khiến DBMS phải truy xuất mọi bản ghi, vô hiệu hóa hầu hết các cơ chế tối ưu hóa.
 
 % TODO: Insert figure here
 \begin{figure}[H]
@@ -79,7 +93,18 @@ Tuy nhiên, PQS có những hạn chế đáng kể. Nỗ lực triển khai cao
     \label{fig:norec_overview}
 \end{figure}
 
-Ví dụ minh họa dựa trên lỗi trong SQLite: Truy vấn tối ưu hóa \texttt{SELECT * FROM t0 WHERE t0.c0 GLOB '-*';} trả về \{\} (tập rỗng) do tối ưu hóa LIKE sai, trong khi truy vấn không tối ưu hóa \texttt{SELECT t0.c0 GLOB '-*' FROM t0;} đánh giá predicate trên mọi bản ghi và trả về \{TRUE\}. Sự không nhất quán này (0 hàng vs 1 TRUE) phát hiện ra lỗi.
+Ví dụ minh họa dựa trên lỗi trong SQLite thể hiện như sau:
+
+\begin{center}
+\begin{lstlisting}[caption={NoREC example based on SQLite bug}, label={lst:norec_example}]
+CREATE TABLE t0 ( c0 UNIQUE );
+INSERT INTO t0 VALUES ( -1) ;
+SELECT * FROM t0 WHERE t0 . c0 GLOB ' -* '; -- : {} [BUG]
+SELECT t0 . c0 GLOB ' -* ' FROM t0 ; -- { TRUE } [Correct] 
+\end{lstlisting}
+\end{center}
+
+Truy vấn tối ưu hóa \texttt{SELECT * FROM t0 WHERE t0.c0 GLOB '-*';} trả về \{\} (tập rỗng) do tối ưu hóa LIKE sai, trong khi truy vấn không tối ưu hóa \texttt{SELECT t0.c0 GLOB '-*' FROM t0;} đánh giá predicate trên mọi bản ghi và trả về \{TRUE\}. Sự không nhất quán này (0 hàng vs 1 TRUE) phát hiện ra lỗi.
 
 \subsubsection{Kết quả và đánh giá}
 
@@ -120,7 +145,23 @@ Hạn chế của NoREC là tính tổng quát bị giới hạn, chủ yếu ch
     \label{fig:tlp_overview}
 \end{figure}
 
-Ví dụ minh họa dựa trên lỗi MySQL: Truy vấn gốc \texttt{SELECT * FROM t0, t1;} (cross product) trả về \{0, -0\} (đúng). Predicate được chọn là \texttt{t0.c0 = t1.c0}. Truy vấn phân vùng kết hợp ba truy vấn con bằng UNION ALL. MySQL xử lý sai truy vấn con đầu tiên (vì \texttt{0 = -0} đánh giá thành FALSE), dẫn đến kết quả kết hợp là \{\} (tập rỗng). Do $RS(O) \ne RS(P)$, lỗi logic được phát hiện.
+Ví dụ minh họa dựa trên lỗi MySQL thể hiện như sau:
+
+\begin{center}
+\begin{lstlisting}[caption={A logic bug in MySQL caused a predicate 0=-0 to incorrectly evaluate to FALSE}, label={lst:tlp_example}]
+CREATE TABLE t0 ( c0 INT );
+CREATE TABLE t1 ( c0 DOUBLE );
+INSERT INTO t0 VALUES (0) ;
+INSERT INTO t1 VALUES ( ' -0 ');
+SELECT * FROM t0 , t1 WHERE t0 . c0 = t1 . c0 ; -- {} [BUG]
+SELECT * FROM t0 , t1 ; -- {0 , -0} [CORRECT]
+SELECT * FROM t0 , t1 WHERE t0 . c0 = t1 . c0
+UNION ALL SELECT * FROM t0 , t1 WHERE NOT ( t0 . c0 = t1 . c0 )
+UNION ALL SELECT * FROM t0 , t1 WHERE ( t0 . c0 = t1 . c0 ) IS NULL ; -- {} [BUG]
+\end{lstlisting}
+\end{center}
+
+Truy vấn gốc \texttt{SELECT * FROM t0, t1;} (cross product) trả về \{0, -0\} (đúng). Predicate được chọn là \texttt{t0.c0 = t1.c0}. Truy vấn phân vùng kết hợp ba truy vấn con bằng UNION ALL. MySQL xử lý sai truy vấn con đầu tiên (vì \texttt{0 = -0} đánh giá thành FALSE), dẫn đến kết quả kết hợp là \{\} (tập rỗng). Do $RS(O) \ne RS(P)$, lỗi logic được phát hiện.
 
 \subsubsection{Kết quả và đánh giá}
 
@@ -164,7 +205,47 @@ Hạn chế của TLP là không thể thiết lập ground truth. Tương tự 
     \label{fig:eet_overview}
 \end{figure}
 
+Ví dụ minh họa dựa trên lỗi logic trong DBMS thể hiện như sau:
+
+\begin{center}
+\begin{lstlisting}[caption={EET example: Original vs Transformed query}, label={lst:eet_example}]
+--- Statements for database generation
+CREATE TABLE t0 (c0 TEXT);
+CREATE TABLE t1 (c0 TEXT);
+CREATE TABLE t2 (c0 INT4, c1 INT4, c2 TEXT,
+                c3 TEXT, c4 TEXT, c5 TEXT);
+INSERT INTO t0 values ('');
+INSERT INTO t1 values ('');
+INSERT INTO t2 values (1, 2, 'a', 'a', 'a', 'a'),
+                      (0, 1, '', '', 'a', 'L');
+--- Original query, result set: 0 [CORRECT]
+SELECT t2.c0 FROM t2
+WHERE (t2.c1 >= t2.c0) <> (t2.c5 = (
+    SELECT t2.c4 AS c_0
+    FROM (t1 AS ref_0 INNER JOIN t0 AS ref_1
+        ON (ref_0.c0 = ref_1.c0))
+    WHERE t2.c3 = t2.c2
+    ORDER BY c_0 DESC LIMIT 1));
+--- Transformed query, result set: empty [BUG]
+SELECT t2.c0 FROM t2
+WHERE (t2.c1 >= t2.c0) <> (t2.c5 = (
+SELECT t2.c4 AS c_0
+FROM (t1 AS ref_0 INNER JOIN t0 AS ref_1
+ON (ref_0.c0 = ref_1.c0))
+WHERE (CASE WHEN (((ref_0.c0 LIKE 'z~%')
+AND (NOT (ref_0.c0 LIKE 'z~%')))
+AND ((ref_0.c0 LIKE 'z~%') IS NOT NULL))
+THEN t2.c3 ELSE t2.c3 END) =
+(CASE WHEN (((ref_1.c0 NOT LIKE '_%%')
+      AND (NOT (ref_1.c0 NOT LIKE '_%%')))
+      AND ((ref_1.c0 NOT LIKE '_%%') IS NOT NULL))
+ THEN t2.c4 ELSE t2.c2 END)
+ORDER BY c_0 DESC LIMIT 1));
+\end{lstlisting}
+\end{center}
 Ví dụ minh họa dựa trên lỗi logic 20 năm tuổi trong PostgreSQL: Truy vấn gốc chứa các biểu thức như \texttt{t2.c2} và \texttt{t2.c3}. EET biến đổi các biểu thức này thành hai biểu thức CASE WHEN tương đương về mặt ngữ nghĩa (Redundant Branch Structures). Mặc dù hai truy vấn về mặt ngữ nghĩa giống nhau, truy vấn gốc trả về \{0\} (1 hàng), trong khi truy vấn đã biến đổi trả về tập rỗng (empty set), cho thấy lỗi logic. Sự khác biệt xảy ra vì các biểu thức biến đổi khiến PostgreSQL sử dụng logic thực thi khác (cơ chế hash-join bị lỗi).
+
+EET biến đổi các biểu thức tương đương về mặt ngữ nghĩa (Redundant Branch Structures). Mặc dù hai truy vấn về mặt ngữ nghĩa giống nhau, truy vấn gốc trả về \{0\} (1 hàng), trong khi truy vấn đã biến đổi trả về tập rỗng (empty set), cho thấy lỗi logic. Sự khác biệt xảy ra vì các biểu thức biến đổi khiến DBMS sử dụng logic thực thi khác.
 
 \subsubsection{Kết quả và đánh giá}
 
@@ -237,7 +318,7 @@ EET & \checkmark & $\triangle$ & $\times$ \\ \hline
 \textbf{Thiếu kiểm thử về ORDER BY phức tạp.} Window functions phụ thuộc nhiều vào ORDER BY (ranking, frame boundaries). Các oracle hiện tại không tập trung vào ordering semantics. Không kiểm thử NULL handling trong ORDER BY (NULLS FIRST/LAST).
 
 \textbf{Thiếu kiểm thử về frame specifications.} Các khía cạnh chưa được kiểm thử đầy đủ bao gồm:
-\begin{itemize}
+\begin{itemize}[label=\textbullet]
     \item ROWS vs RANGE frames
     \item Frame boundaries (PRECEDING, FOLLOWING, UNBOUNDED)
     \item Frame exclusions (EXCLUDE CURRENT ROW, EXCLUDE GROUP)
