@@ -7,12 +7,15 @@
 \usepackage{appendix}
 \usepackage[shortlabels]{enumitem}
 \usepackage{booktabs}
+\usepackage{pifont}
+\usepackage{adjustbox}
 \usepackage{rotating} % Rotating table
 \usepackage{hhline}
 \usepackage{colortbl}
 \usepackage{afterpage}
 \usepackage{mathtools} %Fixes/improves amsmath
 \usepackage{setspace}
+\usepackage{svg}
 \usepackage[utf8]{vietnam}
 \usepackage{amstext, amsmath,latexsym,amsbsy,amssymb, amssymb,amsthm,amsfonts,multicol, nccmath}
 \usepackage{listings}
@@ -74,11 +77,11 @@
 \captionsetup{format=myformat}
 \usepackage{titletoc}
 \titlelabel{\thetitle.\,\,}
-\titleformat{\chapter}[display] 
-  {\fontsize{14}{16}\selectfont\bfseries\centering}
-  {\MakeUppercase{\chaptertitlename}\ \thechapter}{0pt}{\fontsize{14}{16}\selectfont\MakeUppercase}
-\titlespacing{\chapter}{0pt}{0pt}{40pt} 
-\titleformat*{\section}{\fontsize{14}{14}\selectfont\bfseries}
+\titleformat{\chapter}[block]
+  {\fontsize{16}{18}\selectfont\bfseries\raggedright}
+  {\MakeUppercase{\chaptertitlename}\ \thechapter}{0pt}{\fontsize{16}{18}\selectfont}
+\titlespacing{\chapter}{0pt}{0pt}{0pt}{0pt}
+\titleformat*{\section}{\fontsize{14}{16}\selectfont\bfseries}
 \titleformat*{\subsection}{\fontsize{14}{14}\selectfont\bfseries}
 \titleformat*{\subsubsection}{\fontsize{14}{14}\selectfont\bfseries}
 \titleformat*{\paragraph}{\large\bfseries}
@@ -178,14 +181,14 @@
 \newpage
 \pagestyle{plain}
 \pagenumbering{gobble}
-\input{cover/Biatrong}
+% \input{cover/Biatrong}
 \newpage
 \def\baselinestretch{1.2}
 \pagestyle{plain}
 \pagenumbering{gobble}
-\input{cover/loicamdoan}
+% \input{cover/loicamdoan}
 \newpage
-\input{cover/loicamon} 
+% \input{cover/loicamon} 
 \newpage
 \newpage
 \pagenumbering{roman}

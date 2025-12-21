@@ -1,8 +1,8 @@
 \clearpage
 \phantomsection
 
-\addcontentsline{toc}{chapter}{{Mở đầu}}
-\chapter*{Mở đầu}
+\setcounter{chapter}{0}
+\chapter{Giới thiệu}
 \noindent{\Large \textbf{Lý do chọn đề tài}}
 
 Hệ quản trị cơ sở dữ liệu (Database Management Systems - DBMS) đóng vai trò nền tảng trong các hệ thống thông tin hiện đại, từ ứng dụng web, di động đến các hệ thống doanh nghiệp quy mô lớn. Độ tin cậy và tính đúng đắn của DBMS là yếu tố then chốt, vì bất kỳ lỗi logic nào trong quá trình xử lý truy vấn đều có thể dẫn đến kết quả sai lệch, gây ảnh hưởng nghiêm trọng đến tính toàn vẹn dữ liệu và quyết định kinh doanh.
@@ -69,15 +69,15 @@ Nội dung chính của báo cáo được trình bày như sau:
 
 \renewcommand{\labelitemi}{$-$}
 \begin{itemize}[label=\textbullet]
-	\item \textbf{Mở đầu:} Trình bày lý do chọn đề tài, mục tiêu, phương pháp nghiên cứu, đóng góp và bố cục của báo cáo.
-	
-	\item \textbf{Chương 1 - Kiến thức nền tảng:} Giới thiệu về window functions trong SQL, các thành phần cơ bản (PARTITION BY, ORDER BY, frame specification), và các loại window functions (ranking, aggregate, value functions). Phân tích đặc điểm của SQLite và cách triển khai window functions.
-	
-	\item \textbf{Chương 2 - Công trình liên quan:} Tổng quan về các kỹ thuật kiểm thử DBMS hiện đại (PQS, TLP, NoREC, EET), phân tích điểm mạnh và hạn chế của từng phương pháp. Xác định khoảng trống nghiên cứu về kiểm thử window functions và lý do cần thiết phải phát triển oracle chuyên biệt.
-	
-	\item \textbf{Chương 3 - Thiết kế và triển khai MRUP Oracle:} Trình bày chi tiết về thiết kế quan hệ metamorphic MRUP, kiến trúc của oracle với ba thành phần chính, các ràng buộc C0-C5, mutation strategies, và result comparison algorithm. Mô tả quá trình triển khai trong SQLancer.
-	
-	\item \textbf{Chương 4 - Thí nghiệm và đánh giá:} Thiết kế thí nghiệm với các metrics đánh giá, kết quả thực nghiệm trên SQLite, phân tích hiệu quả và hạn chế của MRUP Oracle. So sánh với các oracle khác trong SQLancer.
-	
-	\item \textbf{Kết luận và hướng phát triển:} Tổng kết các kết quả đạt được, đánh giá mức độ hoàn thành mục tiêu, và đề xuất các hướng nghiên cứu tiếp theo để cải thiện MRUP Oracle.
+	\item \textbf{Chương 1 - Giới thiệu:} Trình bày lý do chọn đề tài, mục tiêu, phương pháp nghiên cứu, đóng góp và bố cục của báo cáo.
+
+	\item \textbf{Chương 2 - Kiến thức nền tảng:} Giới thiệu về window functions trong SQL, các thành phần cơ bản (PARTITION BY, ORDER BY, frame specification), và các loại window functions (ranking, aggregate, value functions). Phân tích đặc điểm của SQLite và cách triển khai window functions.
+
+	\item \textbf{Chương 3 - Công trình liên quan:} Tổng quan về các kỹ thuật kiểm thử DBMS hiện đại (PQS, TLP, NoREC, EET), phân tích điểm mạnh và hạn chế của từng phương pháp. Xác định khoảng trống nghiên cứu về kiểm thử window functions và lý do cần thiết phải phát triển oracle chuyên biệt.
+
+	\item \textbf{Chương 4 - Thiết kế và triển khai MRUP Oracle:} Trình bày chi tiết về thiết kế quan hệ metamorphic MRUP, kiến trúc của oracle với ba thành phần chính, các ràng buộc C0-C5, mutation strategies, và result comparison algorithm. Mô tả quá trình triển khai trong SQLancer.
+
+	\item \textbf{Chương 5 - Thí nghiệm và đánh giá:} Thiết kế thí nghiệm với các metrics đánh giá, kết quả thực nghiệm trên SQLite, phân tích hiệu quả và hạn chế của MRUP Oracle. So sánh với các oracle khác trong SQLancer.
+
+	\item \textbf{Chương 6 - Kết luận và hướng phát triển:} Tổng kết các kết quả đạt được, đánh giá mức độ hoàn thành mục tiêu, và đề xuất các hướng nghiên cứu tiếp theo để cải thiện MRUP Oracle.
 \end{itemize}

@@ -1,7 +1,7 @@
 \clearpage
 \phantomsection
 
-\setcounter{chapter}{2}
+\setcounter{chapter}{3}
 \chapter[{THIẾT KẾ MRUP ORACLE}]{Thiết kế MRUP Oracle}
 
 Chương này trình bày thiết kế và triển khai MRUP Oracle, một test oracle chuyên biệt cho window functions trong SQLite. Chúng tôi bắt đầu với động lực phát triển oracle, sau đó trình bày tổng quan phương pháp, chi tiết hóa thiết kế quan hệ metamorphic và constraint system, cuối cùng mô tả kiến trúc và các thành phần chính.
@@ -38,12 +38,14 @@ Quan hệ này tương tự PQS nhưng hoạt động ở cấp độ data parti
 
 % TODO: Insert figure here
 \begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/mrup_workflow.png}
-    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: MRUP Oracle Workflow Diagram]\\\vspace{0.5cm}Generate (t1, t2) with disjoint partitions → Create t\_union = t1 ∪ t2\\→ Generate window query H with constraints C0-C5\\→ Apply mutations (window spec + CASE WHEN)\\→ Execute H on t1, t2, t\_union → Compare results\vspace{2cm}}}
-    \caption{Workflow tổng quan của MRUP Oracle}
-    \label{fig:mrup_workflow}
+  \centering
+  \begin{adjustbox}{center}
+    \includegraphics[width=1.24\textwidth]{figures/fuzzing/Overview Approach MRUP Final.png}
+  \end{adjustbox}
+  \caption{Overview of the MRUP fuzzing approach}
 \end{figure}
+
+
 
 MRUP Oracle hoạt động theo sáu bước chính. Bước 1 tạo hai bảng $t_1$ và $t_2$ với cùng schema nhưng partition values disjoint. Bước 2 tạo window function query $H$ tuân thủ constraints C0-C5. Bước 3 áp dụng identity mutations (98\% rate) vào argument của window function. Bước 4 áp dụng CASE WHEN mutations (100\% rate) để wrap toàn bộ window function. Bước 5 thực thi $H$ trên ba bảng để thu được $R_1$, $R_2$, và $R_{union}$. Bước 6 so sánh $R_{union}$ với $R_1 \cup R_2$ sử dụng three-layer comparator. Nếu khác nhau, một lỗi logic được phát hiện.
 
@@ -173,8 +175,8 @@ SELECT ROW_NUMBER() OVER (
 MRUP Oracle không tạo frame specification khi sử dụng ranking functions.
 
 \subsubsection{C4: RANGE chỉ với single ORDER BY}
-
-SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột [https://sqlite.org/windowfunctions.html]. Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Ví dụ vi phạm:
+SQLite không hỗ trợ RANGE frame khi ORDER BY có nhiều hơn một cột~\cite{SQLiteWindow}.
+Điều này xuất phát từ độ phức tạp trong việc xác định "khoảng cách" giữa các hàng khi có nhiều cột sắp xếp. Ví dụ vi phạm:
 
 \begin{center}
 \begin{lstlisting} 
@@ -194,7 +196,9 @@ MRUP Oracle đảm bảo nếu sử dụng RANGE frame thì ORDER BY chỉ có m
 
 \subsubsection{C5: Chỉ sử dụng deterministic functions}
 
-Các hàm non-deterministic (RANDOM(), CURRENT\_TIMESTAMP) cho kết quả khác nhau mỗi lần chạy, gây false positives. MRUP Oracle chỉ sử dụng các hàm deterministic: ROW\_NUMBER, RANK, DENSE\_RANK, SUM, AVG, COUNT, MIN, MAX. Các hàm bị cấm bao gồm RANDOM(), CURRENT\_TIMESTAMP, CURRENT\_DATE, CURRENT\_TIME, và các UDF không deterministic.
+Các hàm non-deterministic (RANDOM(), CURRENT\_TIMESTAMP) cho kết quả khác nhau mỗi lần chạy, gây false positives. MRUP Oracle chỉ sử dụng các hàm deterministic: ROW\_NUMBER, RANK, DENSE\_RANK, SUM, AVG, COUNT, MIN, MAX. Các hàm bị cấm bao gồm RANDOM(), CURRENT\_TIMESTAMP, \_\allowbreak CURRENT\_DATE, 
+CURRENT\_\allowbreak TIME
+, và các UDF không deterministic.
 
 \subsection{Table pair generation}
 
@@ -379,14 +383,7 @@ Result comparator là thành phần quan trọng nhất của MRUP Oracle, đả
 
 \subsection{Three-layer comparison}
 
-% TODO: Insert figure here
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/comparator_architecture.png}
-    \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[Placeholder: Three-Layer Comparator Architecture]\\\vspace{0.5cm}Layer 1: Cardinality Check (|R\_union| = |R\_1| + |R\_2|)\\→ Layer 2: MRUP Normalization (partition-aware sorting)\\→ Layer 3: Per-Partition Comparison (type-aware equality)\vspace{2cm}}}
-    \caption{Kiến trúc three-layer comparator}
-    \label{fig:comparator_architecture}
-\end{figure}
+Comparator trong MRUP Oracle là thành phần quan trọng thực hiện so sánh kết quả giữa $H(t_{union})$ và $H(t_1) \cup H(t_2)$ thông qua ba tầng: (1) Cardinality check đảm bảo số lượng hàng phù hợp, (2) MRUP normalization thực hiện sắp xếp partition-aware để chuẩn hóa thứ tự kết quả, và (3) Per-partition comparison thực hiện so sánh từng partition với type-aware comparison để xử lý chính xác các kiểu dữ liệu khác nhau trong SQLite.
 
 \subsubsection{Layer 1: Cardinality check}
 
@@ -398,7 +395,7 @@ Do window functions không đảm bảo thứ tự toàn cục (chỉ đảm b�
 
 Ví dụ normalization:
 
-\begin{center} \begin{lstlisting} 
+\begin{center} \begin{lstlisting}
 -- Before normalization (arbitrary global order)
 dept         | salary | wf_result
 -------------|--------|----------

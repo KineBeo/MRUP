@@ -1,10 +1,16 @@
 \clearpage
 \phantomsection
 
-\setcounter{chapter}{0}
+\setcounter{chapter}{1}
 \chapter{Kiến thức nền tảng}
 
-\noindent Chương này giới thiệu các kiến thức nền tảng về window functions trong SQL và SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu.
+\noindent Hệ quản trị cơ sở dữ liệu (Database Management Systems - DBMS) dựa trên mô hình quan hệ [10] là thành phần trung tâm trong nhiều ứng dụng, vì chúng cho phép lưu trữ và truy xuất dữ liệu một cách hiệu quả. DBMS đã được kiểm thử kỹ lưỡng bằng các công cụ sinh truy vấn ngẫu nhiên như SQLsmith [45], những công cụ này đã chứng minh hiệu quả trong việc tìm kiếm các truy vấn khiến quá trình DBMS bị treo (ví dụ: do buffer overflow). Cũng như vậy, các công cụ fuzzing như AFL [2] được áp dụng định kỳ cho DBMS. Tuy nhiên, các phương pháp tiếp cận này không thể phát hiện lỗi logic, mà chúng tôi định nghĩa là những lỗi khiến truy vấn trả về kết quả không chính xác, ví dụ như bỏ sót hàng mà không làm treo DBMS.
+
+Lỗi logic trong DBMS rất khó phát hiện tự động. Thách thức chính trong kiểm thử tự động là việc xây dựng oracle kiểm thử hiệu quả, có thể phát hiện liệu hệ thống có xử lý đúng đắn cho một đầu vào cho trước hay không [21]. Trong năm 1998, Slutz đề xuất sử dụng kiểm thử phân biệt (differential testing) [33] để phát hiện lỗi logic trong DBMS, bằng cách xây dựng oracle kiểm thử so sánh kết quả của truy vấn trên nhiều DBMS khác nhau, mà tác giả đã triển khai trong công cụ RAGS [46]. Mặc dù RAGS phát hiện được nhiều lỗi, kiểm thử phân biệt có hạn chế đáng kể là các hệ thống đang được kiểm thử cần phải triển khai cùng ngữ nghĩa cho đầu vào giống nhau. Tất cả các DBMS đều hỗ trợ ngôn ngữ chuẩn hóa cấu trúc truy vấn (Structured Query Language - SQL) để tạo, truy xuất và sửa đổi dữ liệu [8]. Tuy nhiên trong thực tế, mỗi DBMS cung cấp rất nhiều tiện ích mở rộng cho chuẩn này và có sự khác biệt với chuẩn (ví dụ: trong cách xử lý giá trị NULL [46]). Điều này giới hạn đáng kể kiểm thử phân biệt, và tác giả cũng đã nêu rõ rằng phần lõi chung nhỏ và các khác biệt giữa các DBMS khác nhau là một thách thức [46]. Hơn nữa, ngay cả khi tất cả DBMS đều lấy cùng các hàng, cũng không thể đảm bảo rằng chúng hoạt động chính xác, vì chúng có thể đều bị ảnh hưởng bởi cùng một lỗi cơ bản.
+
+Để phát hiện hiệu quả các lỗi logic trong DBMS, các kỹ thuật như Pivoted Query Synthesis (PQS) [1], Ternary Logic Partitioning (TLP) [2], Non-Optimizing Reference Engine Construction (NoREC) [3], và Equivalent Expression Transformation (EET) [4] đã được phát triển và áp dụng rộng rãi. Tuy nhiên, các kỹ thuật này phần lớn tập trung vào kiểm thử câu lệnh SELECT cơ bản, JOIN, và các hàm tổng hợp với GROUP BY, mà chưa khai thác hiệu quả các đặc điểm riêng biệt của window functions. Do đó, vẫn còn khoảng trống nghiên cứu quan trọng trong việc phát triển oracle chuyên biệt cho window functions.
+
+Chương này giới thiệu các kiến thức nền tảng về window functions trong SQL và SQLite, hệ quản trị cơ sở dữ liệu được sử dụng trong nghiên cứu, nhằm tạo nền tảng cho việc phát triển MRUP Oracle - một oracle kiểm thử chuyên biệt cho window functions dựa trên quan hệ metamorphic.
 
 \section{Window Functions trong SQL}
 
